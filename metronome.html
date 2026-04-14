@@ -1,0 +1,1266 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>TEMPO — Metrônomo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink:    #0a0a08;
+  --paper:  #f5f0e8;
+  --amber:  #d4820a;
+  --amber2: #f0a832;
+  --amber3: #ffd97d;
+  --rust:   #c0392b;
+  --dim:    #8a7f6e;
+  --rule:   rgba(212,130,10,0.2);
+  --mono:   'Share Tech Mono', monospace;
+  --display:'Bebas Neue', sans-serif;
+  --body:   'DM Sans', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--body);
+  overflow-x: hidden;
+}
+
+/* ── Grain overlay ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: 0.5;
+}
+
+/* ── Layout ── */
+.shell {
+  position: relative; z-index: 1;
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ── Header ── */
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 0 16px;
+  border-bottom: 1px solid var(--rule);
+}
+.brand {
+  font-family: var(--display);
+  font-size: 28px;
+  letter-spacing: 4px;
+  color: var(--amber);
+  line-height: 1;
+}
+.brand span { color: var(--paper); opacity: 0.4; font-size: 11px; font-family: var(--mono); letter-spacing: 2px; display: block; margin-top: 2px; }
+
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+#statusPill {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  padding: 4px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  color: var(--dim);
+  text-transform: uppercase;
+  transition: all 0.3s;
+}
+#statusPill.on {
+  border-color: var(--amber);
+  color: var(--amber);
+  box-shadow: 0 0 12px rgba(212,130,10,0.2);
+}
+#silBadge {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  border: 1px solid rgba(192,57,43,0.3);
+  color: var(--rust);
+  border-radius: 2px;
+  display: none;
+}
+
+/* ── Main stage ── */
+.stage {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 0;
+  align-items: start;
+  padding: 32px 0;
+}
+
+/* ── Left: BPM + transport ── */
+.left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding-right: 40px;
+  border-right: 1px solid var(--rule);
+}
+
+/* BPM display */
+.bpm-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.bpm-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--dim);
+  margin-bottom: 4px;
+}
+.bpm-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.bpm-nudge {
+  background: none;
+  border: none;
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 10px;
+  transition: color 0.15s;
+  line-height: 1;
+  user-select: none;
+}
+.bpm-nudge:hover { color: var(--amber); }
+.bpm-nudge.big { font-size: 13px; letter-spacing: -1px; }
+
+#bpmInput {
+  font-family: var(--display);
+  font-size: 100px;
+  line-height: 0.9;
+  color: var(--amber);
+  background: none;
+  border: none;
+  outline: none;
+  width: 280px;
+  text-align: center;
+  cursor: ns-resize;
+  letter-spacing: -2px;
+  caret-color: var(--amber);
+  -moz-appearance: textfield;
+}
+#bpmInput::-webkit-outer-spin-button,
+#bpmInput::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+.bpm-hint {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--dim);
+  text-align: center;
+  opacity: 0.5;
+  margin-top: 2px;
+}
+
+/* Pendulum arc visual */
+.pendulum-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 110px;
+  position: relative;
+}
+.pendulum-arc {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 100px;
+  border: 1px solid var(--rule);
+  border-bottom: none;
+  border-radius: 100px 100px 0 0;
+}
+.pendulum-line {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  height: 90px;
+  background: linear-gradient(to top, var(--amber), transparent);
+  transform-origin: bottom center;
+  transform: translateX(-50%) rotate(0deg);
+  transition: transform 0.05s linear;
+  border-radius: 1px;
+}
+.pendulum-bob {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px; height: 10px;
+  background: var(--amber);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--amber);
+}
+/* tick marks on arc */
+.arc-marks {
+  position: absolute;
+  bottom: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 200px; height: 100px;
+}
+
+/* Transport */
+.transport-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+#toggleBtn {
+  font-family: var(--display);
+  font-size: 22px;
+  letter-spacing: 3px;
+  padding: 14px 36px;
+  background: var(--amber);
+  color: var(--ink);
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+}
+#toggleBtn:hover { background: var(--amber2); }
+.playing #toggleBtn {
+  background: var(--rust);
+  color: #fff;
+}
+#tapBtn {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  padding: 14px 18px;
+  background: none;
+  border: 1px solid var(--rule);
+  color: var(--dim);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-transform: uppercase;
+}
+#tapBtn:hover, #tapBtn.tapped { border-color: var(--amber); color: var(--amber); }
+
+/* measure counter */
+#measureCounter {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--dim);
+  padding: 6px 0;
+}
+#measureCounter strong { color: var(--amber2); }
+
+/* Time sig + subdiv */
+.sig-row {
+  display: flex;
+  gap: 24px;
+  align-items: flex-end;
+}
+.field-block { display: flex; flex-direction: column; gap: 6px; }
+.field-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+select {
+  font-family: var(--mono);
+  font-size: 13px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--rule);
+  color: var(--paper);
+  padding: 8px 12px;
+  border-radius: 2px;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+select:focus { border-color: var(--amber); }
+
+/* Accents */
+.accent-strip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.accent-btn {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 6px 10px;
+  background: none;
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--dim);
+  cursor: pointer;
+  transition: all 0.1s;
+  border-radius: 2px;
+}
+.accent-btn.active {
+  border-color: var(--amber);
+  color: var(--amber);
+  background: rgba(212,130,10,0.08);
+}
+.accent-btn.weak {
+  border-color: rgba(255,255,255,0.03);
+  color: rgba(138,127,110,0.4);
+  border-style: dashed;
+}
+.accent-btn.lit { /* flashing on beat */
+  background: rgba(212,130,10,0.18);
+}
+
+/* ── Right col ── */
+.right-col {
+  padding-left: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.panel-title {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--dim);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+/* Volume */
+.vol-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.vol-icon { font-size: 12px; color: var(--dim); }
+input[type=range] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 2px;
+  background: var(--rule);
+  outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  background: var(--amber);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+input[type=range]::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 8px var(--amber);
+}
+input[type=range]::-moz-range-thumb {
+  width: 14px; height: 14px;
+  background: var(--amber);
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+}
+
+/* Sound type */
+.chip-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.chip {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 5px 10px;
+  background: none;
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--dim);
+  cursor: pointer;
+  border-radius: 2px;
+  text-transform: uppercase;
+  transition: all 0.1s;
+}
+.chip:hover { border-color: rgba(255,255,255,0.15); color: var(--paper); }
+.chip.active {
+  border-color: var(--amber);
+  color: var(--amber);
+  background: rgba(212,130,10,0.06);
+}
+
+/* Silence mode */
+.silence-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.sil-chip {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 5px 10px;
+  background: none;
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--dim);
+  cursor: pointer;
+  border-radius: 2px;
+  text-transform: uppercase;
+  transition: all 0.1s;
+}
+.sil-chip.active { border-color: var(--rust); color: var(--rust); background: rgba(192,57,43,0.06); }
+
+.sil-params { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.sil-param { display: none; }
+.param-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--dim);
+  margin-bottom: 3px;
+}
+input[type=number] {
+  font-family: var(--mono);
+  font-size: 13px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--rule);
+  color: var(--paper);
+  padding: 6px 10px;
+  border-radius: 2px;
+  width: 100%;
+  outline: none;
+  -moz-appearance: textfield;
+}
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+input[type=number]:focus { border-color: var(--amber); }
+
+/* Progressive BPM */
+.prog-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.prog-field { display: flex; flex-direction: column; gap: 4px; }
+#progressiveBpmDisplay {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--amber2);
+  margin-top: 6px;
+  display: none;
+}
+
+/* Humanize */
+.hum-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.toggle-check { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.toggle-check input[type=checkbox] { accent-color: var(--amber); width: 14px; height: 14px; cursor: pointer; }
+.toggle-check span { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; color: var(--dim); }
+#humanizeMsLabel { font-family: var(--mono); font-size: 10px; color: var(--amber2); min-width: 32px; }
+
+/* Presets */
+.preset-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.preset-row select { flex: 1; min-width: 100px; font-size: 11px; }
+.preset-row button {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 7px 10px;
+  background: none;
+  border: 1px solid var(--rule);
+  color: var(--dim);
+  cursor: pointer;
+  border-radius: 2px;
+  text-transform: uppercase;
+  transition: all 0.1s;
+}
+.preset-row button:hover { border-color: var(--amber); color: var(--amber); }
+.preset-row .del-btn:hover { border-color: var(--rust); color: var(--rust); }
+#presetStatus { font-family: var(--mono); font-size: 9px; color: var(--amber2); letter-spacing: 1px; }
+
+/* ── Bottom bar ── */
+.bottom-bar {
+  border-top: 1px solid var(--rule);
+  padding: 14px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.bottom-bar span {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--dim);
+  opacity: 0.5;
+}
+
+/* ── Beat flash overlay ── */
+#beatFlash {
+  position: fixed; inset: 0; pointer-events: none; z-index: 999;
+  background: var(--amber);
+  opacity: 0;
+  transition: opacity 0.05s;
+}
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  .stage { grid-template-columns: 1fr; gap: 28px; }
+  .left-col { padding-right: 0; border-right: none; border-bottom: 1px solid var(--rule); padding-bottom: 28px; }
+  .right-col { padding-left: 0; }
+  #bpmInput { font-size: 72px; width: 220px; }
+  .prog-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 400px) {
+  .shell { padding: 0 14px; }
+  #bpmInput { font-size: 56px; width: 180px; }
+  .brand { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+
+<div id="beatFlash"></div>
+
+<div class="shell">
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="brand">
+      TEMPO
+      <span>PRECISION METRONOME</span>
+    </div>
+    <div class="top-right">
+      <div id="silBadge"></div>
+      <div id="statusPill">PARADO</div>
+    </div>
+  </div>
+
+  <!-- STAGE -->
+  <div class="stage">
+
+    <!-- LEFT -->
+    <div class="left-col">
+
+      <!-- BPM -->
+      <div class="bpm-block">
+        <div class="bpm-label">BATIDAS POR MINUTO</div>
+        <div class="bpm-row">
+          <button class="bpm-nudge big" id="decreaseBpm10" title="−10">−10</button>
+          <button class="bpm-nudge" id="decreaseBpm" title="−0.5">−</button>
+          <input id="bpmInput" type="number" min="20" max="400" step="0.1" value="120" title="Arraste ou scroll"/>
+          <button class="bpm-nudge" id="increaseBpm" title="+0.5">+</button>
+          <button class="bpm-nudge big" id="increaseBpm10" title="+10">+10</button>
+        </div>
+        <div class="bpm-hint">ARRASTAR · SCROLL · DIGITAR</div>
+      </div>
+
+      <!-- Pendulum -->
+      <div class="pendulum-wrap">
+        <div class="pendulum-arc"></div>
+        <svg class="arc-marks" viewBox="0 0 200 100" style="position:absolute;bottom:0;left:50%;transform:translateX(-50%)">
+          <!-- tick marks at angles -->
+          <line x1="100" y1="100" x2="100" y2="88" stroke="rgba(212,130,10,0.3)" stroke-width="1"/>
+          <line x1="100" y1="100" x2="56.7" y2="93.3" stroke="rgba(212,130,10,0.15)" stroke-width="1" transform="rotate(-30 100 100)"/>
+          <line x1="100" y1="100" x2="56.7" y2="93.3" stroke="rgba(212,130,10,0.15)" stroke-width="1" transform="rotate(30 100 100)"/>
+          <line x1="100" y1="100" x2="56.7" y2="93.3" stroke="rgba(212,130,10,0.1)" stroke-width="1" transform="rotate(-60 100 100)"/>
+          <line x1="100" y1="100" x2="56.7" y2="93.3" stroke="rgba(212,130,10,0.1)" stroke-width="1" transform="rotate(60 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="88" stroke="rgba(212,130,10,0.15)" stroke-width="1" transform="rotate(-90 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="88" stroke="rgba(212,130,10,0.15)" stroke-width="1" transform="rotate(90 100 100)"/>
+        </svg>
+        <div class="pendulum-line" id="pendulumLine">
+          <div class="pendulum-bob"></div>
+        </div>
+      </div>
+
+      <!-- Transport -->
+      <div>
+        <div class="transport-row">
+          <button id="toggleBtn">START</button>
+          <button id="tapBtn">TAP &nbsp;[T]</button>
+        </div>
+        <div id="measureCounter" style="margin-top:10px">—</div>
+      </div>
+
+      <!-- Time sig + subdiv -->
+      <div class="sig-row">
+        <div class="field-block">
+          <div class="field-label">Compasso</div>
+          <select id="timeSignature">
+            <option value="4/4">4 / 4</option>
+            <option value="3/4">3 / 4</option>
+            <option value="6/8">6 / 8</option>
+            <option value="7/8">7 / 8</option>
+            <option value="5/4">5 / 4</option>
+          </select>
+        </div>
+        <div class="field-block">
+          <div class="field-label">Subdivisão</div>
+          <select id="subdivision">
+            <option value="1">Batida (1/4)</option>
+            <option value="2">Colcheias</option>
+            <option value="3">Tercinas</option>
+            <option value="4">Semicolcheias</option>
+            <option value="6">Sextinas</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Accents -->
+      <div>
+        <div class="field-label" style="margin-bottom:10px">ACENTOS &nbsp;— forte · normal · fraco</div>
+        <div id="accents" class="accent-strip"></div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right-col">
+
+      <!-- Volume -->
+      <div>
+        <div class="panel-title">Volume</div>
+        <div class="vol-row">
+          <span class="vol-icon">▸</span>
+          <input type="range" id="masterGain" min="0" max="1" step="0.01" value="0.9"/>
+          <span class="vol-icon">◼</span>
+        </div>
+      </div>
+
+      <!-- Sound type -->
+      <div>
+        <div class="panel-title">Tipo de Clique</div>
+        <div class="chip-row">
+          <div class="chip active" data-sound="sine">Sine</div>
+          <div class="chip" data-sound="click">Seco</div>
+          <div class="chip" data-sound="woodblock">Wood</div>
+          <div class="chip" data-sound="beep">Beep</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-top:6px;letter-spacing:1px">SUBDIVISÕES USAM TOM MAIS SUAVE</div>
+      </div>
+
+      <!-- Humanize -->
+      <div>
+        <div class="panel-title">Humanize</div>
+        <div class="hum-row">
+          <label class="toggle-check">
+            <input type="checkbox" id="humanizeToggle"/>
+            <span>ATIVAR</span>
+          </label>
+          <input type="range" id="humanizeMs" min="0" max="30" step="1" value="8" style="flex:1"/>
+          <span id="humanizeMsLabel">8ms</span>
+        </div>
+      </div>
+
+      <!-- Silence mode -->
+      <div>
+        <div class="panel-title">Modo de Silêncio</div>
+        <div class="silence-chips">
+          <div class="sil-chip active" data-mode="none">Off</div>
+          <div class="sil-chip" data-mode="fixed">Fixo</div>
+          <div class="sil-chip" data-mode="progressive">Prog.</div>
+          <div class="sil-chip" data-mode="random">Aleat.</div>
+          <div class="sil-chip" data-mode="partial">Parcial</div>
+          <div class="sil-chip" data-mode="fade">Fade</div>
+        </div>
+        <div id="silence-params-container" style="display:none">
+          <div class="sil-params">
+            <div class="sil-param" data-mode="fixed progressive">
+              <div class="param-label">TOCAR (compassos)</div>
+              <input id="playMeasures" type="number" min="1" value="3"/>
+            </div>
+            <div class="sil-param" data-mode="fixed progressive">
+              <div class="param-label">SILENCIAR (compassos)</div>
+              <input id="muteMeasures" type="number" min="0" value="1"/>
+            </div>
+            <div class="sil-param" data-mode="random">
+              <div class="param-label">PROB. DE SILÊNCIO (%)</div>
+              <input id="randomProb" type="number" min="0" max="100" value="30"/>
+            </div>
+            <div class="sil-param" data-mode="partial">
+              <div class="param-label">SUBDIVISÃO VISADA</div>
+              <select id="partialTarget">
+                <option value="1">Batida</option>
+                <option value="2">Colcheias</option>
+                <option value="3">Tercinas</option>
+                <option value="4">Semicolcheias</option>
+                <option value="6">Sextinas</option>
+              </select>
+            </div>
+            <div class="sil-param" data-mode="fade">
+              <div class="param-label">FADE (segundos)</div>
+              <input id="fadeSeconds" type="number" min="0" value="2" step="0.1"/>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progressive BPM -->
+      <div>
+        <div class="panel-title">BPM Progressivo</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <label class="toggle-check">
+            <input type="checkbox" id="progressiveToggle"/>
+            <span>ATIVAR</span>
+          </label>
+        </div>
+        <div class="prog-grid">
+          <div class="prog-field">
+            <div class="param-label">BPM INICIAL</div>
+            <input id="bpmStart" type="number" min="20" max="400" step="0.1" value="100"/>
+          </div>
+          <div class="prog-field">
+            <div class="param-label">BPM FINAL</div>
+            <input id="bpmEnd" type="number" min="20" max="400" step="0.1" value="140"/>
+          </div>
+          <div class="prog-field" style="grid-column:1/-1">
+            <div class="param-label">DURAÇÃO (segundos)</div>
+            <input id="progressiveDuration" type="number" min="1" value="120"/>
+          </div>
+        </div>
+        <div id="progressiveBpmDisplay">BPM ATUAL: <strong id="progressiveBpmNow">—</strong></div>
+      </div>
+
+      <!-- Presets -->
+      <div>
+        <div class="panel-title">Presets</div>
+        <div class="preset-row">
+          <select id="presetSelect"><option value="">— Selecionar —</option></select>
+          <button id="presetLoad">Load</button>
+          <button id="presetSave">Save</button>
+          <button id="presetDelete" class="del-btn">✕</button>
+        </div>
+        <div id="presetStatus" style="margin-top:6px"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- BOTTOM -->
+  <div class="bottom-bar">
+    <span>SPACE = START/STOP &nbsp;·&nbsp; T = TAP TEMPO</span>
+    <span>LBM · v2</span>
+  </div>
+
+</div>
+
+<script>
+(() => {
+  // ── refs ──
+  const bpmInput     = document.getElementById('bpmInput');
+  const toggleBtn    = document.getElementById('toggleBtn');
+  const tapBtn       = document.getElementById('tapBtn');
+  const increaseBpm  = document.getElementById('increaseBpm');
+  const decreaseBpm  = document.getElementById('decreaseBpm');
+  const increaseBpm10= document.getElementById('increaseBpm10');
+  const decreaseBpm10= document.getElementById('decreaseBpm10');
+  const timeSignature= document.getElementById('timeSignature');
+  const subdivisionEl= document.getElementById('subdivision');
+  const accentsEl    = document.getElementById('accents');
+  const progressiveToggle   = document.getElementById('progressiveToggle');
+  const bpmStart     = document.getElementById('bpmStart');
+  const bpmEnd       = document.getElementById('bpmEnd');
+  const progressiveDuration = document.getElementById('progressiveDuration');
+  const silenceChips = document.querySelectorAll('.sil-chip');
+  const playMeasures = document.getElementById('playMeasures');
+  const muteMeasures = document.getElementById('muteMeasures');
+  const randomProb   = document.getElementById('randomProb');
+  const partialTarget= document.getElementById('partialTarget');
+  const fadeSeconds  = document.getElementById('fadeSeconds');
+  const masterGainEl = document.getElementById('masterGain');
+  const measureCounter      = document.getElementById('measureCounter');
+  const statusPill          = document.getElementById('statusPill');
+  const silBadge            = document.getElementById('silBadge');
+  const progressiveBpmDisplay = document.getElementById('progressiveBpmDisplay');
+  const progressiveBpmNow   = document.getElementById('progressiveBpmNow');
+  const humanizeToggle = document.getElementById('humanizeToggle');
+  const humanizeMs   = document.getElementById('humanizeMs');
+  const humanizeMsLabel = document.getElementById('humanizeMsLabel');
+  const presetSelect = document.getElementById('presetSelect');
+  const presetSave   = document.getElementById('presetSave');
+  const presetLoad   = document.getElementById('presetLoad');
+  const presetDelete = document.getElementById('presetDelete');
+  const presetStatus = document.getElementById('presetStatus');
+  const soundChips   = document.querySelectorAll('.chip[data-sound]');
+  const pendulumLine = document.getElementById('pendulumLine');
+  const beatFlash    = document.getElementById('beatFlash');
+
+  // ── Audio ──
+  let audioCtx = null, masterGain = null;
+
+  // ── State ──
+  let isPlaying = false;
+  let lookahead = 25.0, scheduleAheadTime = 0.1;
+  let nextNoteTime = 0.0, current16thNote = 0, noteSchedulerId = null;
+  let tapTimes = [], progressiveStartTime = 0;
+
+  const config = {
+    bpm: 120, timeSignature: [4,4], subdivision: 1, accents: [],
+    silenceMode: 'none',
+    silenceParams: { playMeasures:3, muteMeasures:1, randomProb:30, partialTarget:2, fadeSeconds:2 },
+    progressive: { enabled:false, start:100, end:140, duration:120 },
+    humanize: { enabled:false, ms:8 },
+    soundType: 'sine', masterVolume: 0.9
+  };
+  const silenceState = { currentMeasureIndex:0, inMuteCycle:false, measuresSinceProgressiveStart:0, progressiveMuteCount:0 };
+
+  // ── Pendulum — continuous sine wave locked to AudioContext time ──
+  // One full pendulum cycle = 2 beats (one swing each way).
+  // angle(t) = MAX * sin(2*pi * t / (2 * beatDur))
+  // We anchor the phase to playStartTime so beat 0 starts at angle=0 swinging right.
+  let pendulumAnimId = null;
+  let pendulumStartTime = 0;  // audioCtx.currentTime when play started
+  const PENDULUM_MAX = 44;    // degrees
+
+  function registerPendulumBeat(){ /* no-op — sine formula handles everything */ }
+
+  function animatePendulum(){
+    if(!isPlaying){ pendulumAnimId = null; return; }
+    pendulumAnimId = requestAnimationFrame(animatePendulum);
+    if(!audioCtx){
+      pendulumLine.style.transform = 'translateX(-50%) rotate(0deg)';
+      return;
+    }
+    const elapsed = audioCtx.currentTime - pendulumStartTime;
+    // One full cycle = 2 beats
+    const beatDur = 60.0 / config.bpm;
+    const cycleDur = beatDur * 2;
+    // sin goes 0 → +MAX → 0 → -MAX → 0 over one cycle
+    const angle = PENDULUM_MAX * Math.sin((2 * Math.PI * elapsed) / cycleDur);
+    pendulumLine.style.transform = `translateX(-50%) rotate(${angle.toFixed(3)}deg)`;
+  }
+
+  function snapPendulum(){ /* no-op */ }
+
+  // ── Helpers ──
+  function parseTS(str){ const [n,d]=str.split('/').map(Number); return [n,d]; }
+  function buildAccents(ts){ const a=new Array(ts[0]).fill(0); a[0]=1; return a; }
+
+  // ── Sound ──
+  function makeClickBuffer(ctx){
+    const len = Math.floor(ctx.sampleRate*0.015);
+    const buf = ctx.createBuffer(1,len,ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/(len*0.15));
+    return buf;
+  }
+  function playWoodblock(ctx,dest,t,g){
+    [800,1200].forEach((f,i)=>{
+      const o=ctx.createOscillator(),gn=ctx.createGain();
+      o.type='sine'; o.frequency.value=f; o.connect(gn); gn.connect(dest);
+      gn.gain.setValueAtTime(0.0001,t);
+      gn.gain.exponentialRampToValueAtTime(Math.max(0.0001,g*(i?0.5:1)),t+0.001);
+      gn.gain.exponentialRampToValueAtTime(0.0001,t+0.04);
+      o.start(t); o.stop(t+0.05);
+    });
+  }
+  function playBeep(ctx,dest,t,g,freq){
+    const o=ctx.createOscillator(),gn=ctx.createGain();
+    o.type='square'; o.frequency.value=freq*0.5; o.connect(gn); gn.connect(dest);
+    gn.gain.setValueAtTime(0.0001,t);
+    gn.gain.exponentialRampToValueAtTime(Math.max(0.0001,g*0.4),t+0.002);
+    gn.gain.exponentialRampToValueAtTime(0.0001,t+0.05);
+    o.start(t); o.stop(t+0.06);
+  }
+
+  // ── Accent UI ──
+  function renderAccents(){
+    accentsEl.innerHTML='';
+    const labels={1:'FORTE',0:'NORMAL','-1':'FRACO'};
+    config.accents.forEach((val,i)=>{
+      const btn=document.createElement('button');
+      btn.className='accent-btn'+(val===1?' active':'')+(val===-1?' weak':'');
+      btn.textContent='B'+(i+1)+' '+labels[val];
+      btn.addEventListener('click',()=>{
+        config.accents[i]=config.accents[i]===0?1:(config.accents[i]===1?-1:0);
+        renderAccents();
+      });
+      accentsEl.appendChild(btn);
+    });
+  }
+
+  // ── Silence param visibility ──
+  function updateSilenceVis(mode){
+    document.querySelectorAll('.sil-param').forEach(p=>{
+      p.style.display=(p.dataset.mode||'').includes(mode)?'block':'none';
+    });
+    document.getElementById('silence-params-container').style.display=mode==='none'?'none':'block';
+    const labels={fixed:'FIXO',progressive:'PROG.',random:'ALEAT.',partial:'PARCIAL',fade:'FADE'};
+    if(mode!=='none'){ silBadge.textContent='SILÊNCIO: '+labels[mode]; silBadge.style.display='block'; }
+    else silBadge.style.display='none';
+  }
+
+  // ── Measure counter ──
+  function updateCounter(){
+    if(!isPlaying){ measureCounter.innerHTML='—'; return; }
+    const m=silenceState.currentMeasureIndex, mode=config.silenceMode;
+    if(mode==='none'){ measureCounter.innerHTML='COMPASSO <strong>'+(m+1)+'</strong>'; return; }
+    const play=parseInt(config.silenceParams.playMeasures)||1;
+    const mute=parseInt(config.silenceParams.muteMeasures)||1;
+    const cm=mode==='progressive'?mute+silenceState.progressiveMuteCount:mute;
+    const pos=m%(play+cm);
+    if(pos>=play) measureCounter.innerHTML='⏸ SILÊNCIO <strong>'+(pos-play+1)+'/'+cm+'</strong>';
+    else measureCounter.innerHTML='▸ TOCANDO <strong>'+(pos+1)+'/'+play+'</strong>';
+  }
+
+  // ── Scheduler ──
+  function nextNote(){
+    const bpm=config.timeSignature[0], sub=config.subdivision;
+    current16thNote++;
+    if(current16thNote>=bpm*sub) current16thNote=0;
+    if(current16thNote===0){
+      silenceState.currentMeasureIndex++;
+      if(config.silenceMode==='progressive'){
+        silenceState.measuresSinceProgressiveStart++;
+        const dm=Math.max(1,Math.round((config.progressive.duration||60)/((60/config.bpm)*bpm)));
+        const every=Math.max(1,Math.floor(dm/10));
+        if(silenceState.measuresSinceProgressiveStart%every===0) silenceState.progressiveMuteCount++;
+      }
+    }
+    const beatIndex=Math.floor(current16thNote/sub);
+    return {beatIndex,subIndex:current16thNote%sub,current16thNote,measureIndex:silenceState.currentMeasureIndex};
+  }
+
+  function shouldPlay(bi){
+    const mode=config.silenceMode,sp=config.silenceParams;
+    if(mode==='none') return true;
+    const play=parseInt(sp.playMeasures)||1, mute=parseInt(sp.muteMeasures)||1;
+    if(mode==='fixed') return (bi.measureIndex%(play+mute))<play;
+    if(mode==='progressive'){ const cm=mute+silenceState.progressiveMuteCount; return (bi.measureIndex%(play+cm))<play; }
+    if(mode==='random') return Math.random()*100>=(parseInt(sp.randomProb)||30);
+    if(mode==='partial'){
+      const tgt=parseInt(sp.partialTarget)||1,sub=config.subdivision||1;
+      if(tgt>=sub) return true;
+      const step=Math.round(sub/tgt); return step===0||bi.subIndex%step===0;
+    }
+    if(mode==='fade') return true;
+    return true;
+  }
+
+  function scheduleTick(time,bi){
+    ensureAudio();
+    const bpm=config.timeSignature[0];
+    const accent=config.accents[bi.beatIndex%bpm]||0;
+    let gain=accent===1?1.0:(accent===-1?0.5:0.75);
+
+    if(config.silenceMode==='fade'){
+      const sp=config.silenceParams,play=parseInt(sp.playMeasures)||1,mute=parseInt(sp.muteMeasures)||1;
+      const fadeSec=parseFloat(sp.fadeSeconds)||2,cycle=play+mute,pos=bi.measureIndex%cycle;
+      if(pos>=play-1){
+        const md=(60/config.bpm)*config.timeSignature[0];
+        const ts=config.subdivision,tot=ts*bpm,step=bi.current16thNote%tot;
+        const tim=step*((60/config.bpm)/ts),rem=md-tim;
+        if(rem<=fadeSec) gain*=Math.max(0,rem/fadeSec);
+      }
+    }
+
+    let offset=0;
+    if(config.humanize.enabled&&config.humanize.ms>0) offset=(Math.random()*2-1)*(config.humanize.ms/1000);
+
+    const finalGain=gain*config.masterVolume;
+    if(!shouldPlay(bi)&&config.silenceMode!=='fade') return;
+    if(finalGain<0.001) return;
+
+    const st=Math.max(time+offset,audioCtx.currentTime+0.001);
+    const baseFreq=accent===1?1200:(accent===-1?700:880);
+    const isSub=bi.subIndex!==0;
+    const sType=isSub?'sine':config.soundType;
+
+    if(sType==='click'){
+      const buf=makeClickBuffer(audioCtx),src=audioCtx.createBufferSource(),g=audioCtx.createGain();
+      src.buffer=buf; g.gain.value=isSub?finalGain*0.4:finalGain;
+      src.connect(g); g.connect(masterGain); src.start(st);
+    } else if(sType==='woodblock'){
+      playWoodblock(audioCtx,masterGain,st,isSub?finalGain*0.35:finalGain);
+    } else if(sType==='beep'){
+      playBeep(audioCtx,masterGain,st,isSub?finalGain*0.4:finalGain,baseFreq);
+    } else {
+      const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+      o.type='sine'; o.frequency.value=isSub?baseFreq*0.6:baseFreq;
+      o.connect(g); g.connect(masterGain);
+      const dur=0.06;
+      g.gain.setValueAtTime(0.0001,st);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0001,isSub?finalGain*0.45:finalGain),st+0.002);
+      g.gain.exponentialRampToValueAtTime(0.0001,st+dur);
+      o.start(st); o.stop(st+dur+0.02);
+    }
+
+    // Register pendulum beat at exact audio time (alternates side per main beat)
+    if(!isSub){
+      const side = (bi.beatIndex % 2 === 0) ? 1 : -1;
+      registerPendulumBeat(st, side);
+    }
+
+    // Visual feedback (accent buttons + beat1 flash) via setTimeout
+    const delay=Math.max(0,(st-audioCtx.currentTime)*1000);
+    setTimeout(()=>{
+      // flash accent buttons
+      const accentBtns=accentsEl.querySelectorAll('.accent-btn');
+      if(accentBtns[bi.beatIndex%accentBtns.length]){
+        accentBtns[bi.beatIndex%accentBtns.length].classList.add('lit');
+        setTimeout(()=>accentBtns[bi.beatIndex%accentBtns.length]&&accentBtns[bi.beatIndex%accentBtns.length].classList.remove('lit'),100);
+      }
+      // beat1 flash
+      if(!isSub&&bi.beatIndex===0){
+        beatFlash.style.opacity='0.04';
+        setTimeout(()=>beatFlash.style.opacity='0',80);
+      }
+    },delay);
+  }
+
+  function scheduler(){
+    if(!isPlaying) return;
+    while(nextNoteTime<audioCtx.currentTime+scheduleAheadTime){
+      const bi=nextNote();
+      scheduleTick(nextNoteTime,bi);
+      nextNoteTime+=(60.0/config.bpm)/config.subdivision;
+    }
+    noteSchedulerId=setTimeout(scheduler,lookahead);
+  }
+
+  function ensureAudio(){
+    if(!audioCtx){
+      audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+      masterGain=audioCtx.createGain();
+      masterGain.gain.value=config.masterVolume;
+      masterGain.connect(audioCtx.destination);
+    }
+  }
+
+  // ── Start / Stop ──
+  function start(){
+    if(isPlaying) return;
+    ensureAudio();
+    if(audioCtx.state==='suspended') audioCtx.resume();
+    isPlaying=true;
+    document.body.classList.add('playing');
+    toggleBtn.textContent='STOP';
+    statusPill.textContent='TOCANDO'; statusPill.classList.add('on');
+
+    config.masterVolume=parseFloat(masterGainEl.value)||0.9;
+    config.progressive.enabled=progressiveToggle.checked;
+    config.progressive.start=parseFloat(bpmStart.value)||config.bpm;
+    config.progressive.end=parseFloat(bpmEnd.value)||config.bpm;
+    config.progressive.duration=parseFloat(progressiveDuration.value)||120;
+    config.silenceMode=document.querySelector('.sil-chip.active').dataset.mode;
+    config.silenceParams.playMeasures=parseInt(playMeasures.value)||1;
+    config.silenceParams.muteMeasures=parseInt(muteMeasures.value)||1;
+    config.silenceParams.randomProb=parseInt(randomProb.value)||30;
+    config.silenceParams.partialTarget=parseInt(partialTarget.value)||1;
+    config.silenceParams.fadeSeconds=parseFloat(fadeSeconds.value)||2;
+    config.humanize.enabled=humanizeToggle.checked;
+    config.humanize.ms=parseFloat(humanizeMs.value)||0;
+
+    if(config.progressive.enabled){ progressiveStartTime=audioCtx.currentTime; progressiveBpmDisplay.style.display='block'; }
+
+    silenceState.currentMeasureIndex=0; silenceState.inMuteCycle=false;
+    silenceState.measuresSinceProgressiveStart=0; silenceState.progressiveMuteCount=0;
+    tapTimes=[]; current16thNote=-1;
+    nextNoteTime=audioCtx.currentTime+0.05;
+    scheduler();
+    pendulumStartTime = audioCtx.currentTime;
+    animatePendulum();
+  }
+
+  function stop(){
+    if(!isPlaying) return;
+    isPlaying=false;
+    if(noteSchedulerId) clearTimeout(noteSchedulerId);
+    if(pendulumAnimId) cancelAnimationFrame(pendulumAnimId);
+    document.body.classList.remove('playing');
+    toggleBtn.textContent='START';
+    statusPill.textContent='PARADO'; statusPill.classList.remove('on');
+    progressiveBpmDisplay.style.display='none';
+    measureCounter.innerHTML='—';
+    pendulumLine.style.transform='translateX(-50%) rotate(0deg)';
+  }
+
+  function toggle(){ isPlaying?stop():start(); }
+
+  // ── Progressive BPM ──
+  function updateProgressive(){
+    if(!config.progressive.enabled||!audioCtx) return;
+    const now=audioCtx.currentTime,t0=progressiveStartTime,t1=t0+(config.progressive.duration||0.0001);
+    if(now<=t0) config.bpm=config.progressive.start;
+    else if(now>=t1) config.bpm=config.progressive.end;
+    else config.bpm=config.progressive.start+(config.progressive.end-config.progressive.start)*((now-t0)/(t1-t0));
+    bpmInput.value=config.bpm.toFixed(1);
+    progressiveBpmNow.textContent=config.bpm.toFixed(1);
+  }
+
+  // ── Presets ──
+  const PKEY='metronome_presets';
+  function loadPresets(){ try{ return JSON.parse(localStorage.getItem(PKEY)||'{}'); }catch(e){ return {}; } }
+  function savePresets(p){ try{ localStorage.setItem(PKEY,JSON.stringify(p)); }catch(e){} }
+  function getState(){
+    return {
+      bpm:config.bpm, timeSignature:timeSignature.value, subdivision:subdivisionEl.value,
+      accents:[...config.accents], silenceMode:document.querySelector('.sil-chip.active').dataset.mode,
+      playMeasures:playMeasures.value, muteMeasures:muteMeasures.value, randomProb:randomProb.value, fadeSeconds:fadeSeconds.value,
+      progressive:{enabled:progressiveToggle.checked,start:bpmStart.value,end:bpmEnd.value,duration:progressiveDuration.value},
+      humanize:{enabled:humanizeToggle.checked,ms:humanizeMs.value},
+      soundType:config.soundType, volume:masterGainEl.value
+    };
+  }
+  function applyState(s){
+    if(!s) return;
+    if(s.bpm){ config.bpm=parseFloat(s.bpm); bpmInput.value=config.bpm.toFixed(1); }
+    if(s.timeSignature){ timeSignature.value=s.timeSignature; config.timeSignature=parseTS(s.timeSignature); config.accents=buildAccents(config.timeSignature); createShapeForTime(); }
+    if(s.subdivision){ subdivisionEl.value=s.subdivision; config.subdivision=parseInt(s.subdivision); }
+    if(s.accents){ config.accents=s.accents; }
+    renderAccents();
+    if(s.silenceMode){ silenceChips.forEach(c=>c.classList.toggle('active',c.dataset.mode===s.silenceMode)); updateSilenceVis(s.silenceMode); }
+    if(s.playMeasures) playMeasures.value=s.playMeasures;
+    if(s.muteMeasures) muteMeasures.value=s.muteMeasures;
+    if(s.randomProb) randomProb.value=s.randomProb;
+    if(s.fadeSeconds) fadeSeconds.value=s.fadeSeconds;
+    if(s.progressive){ progressiveToggle.checked=s.progressive.enabled; bpmStart.value=s.progressive.start; bpmEnd.value=s.progressive.end; progressiveDuration.value=s.progressive.duration; }
+    if(s.humanize){ humanizeToggle.checked=s.humanize.enabled; humanizeMs.value=s.humanize.ms; humanizeMsLabel.textContent=s.humanize.ms+'ms'; }
+    if(s.soundType){ config.soundType=s.soundType; soundChips.forEach(c=>c.classList.toggle('active',c.dataset.sound===s.soundType)); }
+    if(s.volume) masterGainEl.value=s.volume;
+  }
+  function refreshPresetSelect(){
+    const p=loadPresets(),prev=presetSelect.value;
+    presetSelect.innerHTML='<option value="">— Selecionar —</option>';
+    Object.keys(p).forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; presetSelect.appendChild(o); });
+    if(prev) presetSelect.value=prev;
+  }
+
+  // Placeholder for SVG — not used in this design (pendulum replaces it)
+  function createShapeForTime(){ /* pendulum visual replaces SVG */ }
+
+  // ── Tap tempo ──
+  function recordTap(){
+    const t=performance.now(); tapTimes.push(t); if(tapTimes.length>8) tapTimes.shift();
+    tapBtn.classList.add('tapped'); setTimeout(()=>tapBtn.classList.remove('tapped'),120);
+    if(tapTimes.length>=2){
+      let deltas=[]; for(let i=1;i<tapTimes.length;i++) deltas.push(tapTimes[i]-tapTimes[i-1]);
+      config.bpm=parseFloat((60000/deltas.reduce((a,b)=>a+b,0)*deltas.length).toFixed(1));
+      // fix: proper average
+      const avg=deltas.reduce((a,b)=>a+b,0)/deltas.length;
+      config.bpm=parseFloat((60000/avg).toFixed(1));
+      bpmInput.value=config.bpm.toFixed(1);
+    }
+  }
+
+  // ── BPM drag ──
+  function bindBpmDrag(){
+    let drag=false,startY=0,startBpm=0;
+    bpmInput.addEventListener('mousedown',e=>{ drag=true; startY=e.clientY; startBpm=config.bpm; e.preventDefault(); });
+    document.addEventListener('mousemove',e=>{ if(!drag) return; config.bpm=Math.min(400,Math.max(20,parseFloat((startBpm+(startY-e.clientY)*0.5).toFixed(1)))); bpmInput.value=config.bpm.toFixed(1); });
+    document.addEventListener('mouseup',()=>{ drag=false; });
+    bpmInput.addEventListener('touchstart',e=>{ drag=true; startY=e.touches[0].clientY; startBpm=config.bpm; },{passive:true});
+    document.addEventListener('touchmove',e=>{ if(!drag) return; config.bpm=Math.min(400,Math.max(20,parseFloat((startBpm+(startY-e.touches[0].clientY)*0.5).toFixed(1)))); bpmInput.value=config.bpm.toFixed(1); },{passive:true});
+    document.addEventListener('touchend',()=>{ drag=false; });
+  }
+
+  // ── Bind UI ──
+  function bindUI(){
+    bpmInput.addEventListener('input',()=>{ config.bpm=parseFloat(bpmInput.value)||config.bpm; });
+    increaseBpm.addEventListener('click',()=>{ config.bpm=Math.min(400,(config.bpm||120)+0.5); bpmInput.value=config.bpm.toFixed(1); });
+    decreaseBpm.addEventListener('click',()=>{ config.bpm=Math.max(20,(config.bpm||120)-0.5); bpmInput.value=config.bpm.toFixed(1); });
+    increaseBpm10.addEventListener('click',()=>{ config.bpm=Math.min(400,(config.bpm||120)+10); bpmInput.value=config.bpm.toFixed(1); });
+    decreaseBpm10.addEventListener('click',()=>{ config.bpm=Math.max(20,(config.bpm||120)-10); bpmInput.value=config.bpm.toFixed(1); });
+    toggleBtn.addEventListener('click',toggle);
+    tapBtn.addEventListener('click',recordTap);
+
+    silenceChips.forEach(c=>c.addEventListener('click',()=>{
+      silenceChips.forEach(x=>x.classList.remove('active')); c.classList.add('active');
+      config.silenceMode=c.dataset.mode; updateSilenceVis(c.dataset.mode);
+    }));
+
+    timeSignature.addEventListener('change',()=>{
+      config.timeSignature=parseTS(timeSignature.value);
+      config.accents=buildAccents(config.timeSignature);
+      renderAccents();
+    });
+    subdivisionEl.addEventListener('change',()=>{ config.subdivision=parseInt(subdivisionEl.value,10); });
+    masterGainEl.addEventListener('input',()=>{ config.masterVolume=parseFloat(masterGainEl.value); });
+
+    soundChips.forEach(c=>c.addEventListener('click',()=>{
+      soundChips.forEach(x=>x.classList.remove('active')); c.classList.add('active');
+      config.soundType=c.dataset.sound;
+    }));
+
+    humanizeMs.addEventListener('input',()=>{ humanizeMsLabel.textContent=humanizeMs.value+'ms'; });
+
+    presetSave.addEventListener('click',()=>{
+      const name=prompt('Nome do preset:',''); if(!name||!name.trim()) return;
+      const p=loadPresets(); p[name.trim()]=getState(); savePresets(p); refreshPresetSelect();
+      presetSelect.value=name.trim(); presetStatus.textContent='✓ SALVO'; setTimeout(()=>presetStatus.textContent='',2000);
+    });
+    presetLoad.addEventListener('click',()=>{
+      const name=presetSelect.value; if(!name) return;
+      const p=loadPresets(); if(p[name]){ applyState(p[name]); presetStatus.textContent='✓ CARREGADO'; setTimeout(()=>presetStatus.textContent='',2000); }
+    });
+    presetDelete.addEventListener('click',()=>{
+      const name=presetSelect.value; if(!name||!confirm('Excluir "'+name+'"?')) return;
+      const p=loadPresets(); delete p[name]; savePresets(p); refreshPresetSelect();
+      presetStatus.textContent='EXCLUÍDO'; setTimeout(()=>presetStatus.textContent='',2000);
+    });
+
+    window.addEventListener('keydown',e=>{
+      if(e.target.tagName==='INPUT'&&e.target.type!=='checkbox') return;
+      if(e.code==='Space'){ e.preventDefault(); toggle(); }
+      if(e.key.toLowerCase()==='t'){ e.preventDefault(); recordTap(); }
+    });
+    bpmInput.addEventListener('wheel',ev=>{
+      ev.preventDefault();
+      const step=ev.shiftKey?1:0.1;
+      config.bpm=ev.deltaY>0?Math.max(20,(config.bpm||120)-step):Math.min(400,(config.bpm||120)+step);
+      bpmInput.value=config.bpm.toFixed(1);
+    });
+    bindBpmDrag();
+  }
+
+  // ── Interval loop ──
+  setInterval(()=>{
+    if(isPlaying&&config.progressive.enabled) updateProgressive();
+    if(masterGain) masterGain.gain.value=parseFloat(masterGainEl.value)||0.9;
+    if(isPlaying) updateCounter();
+  },100);
+
+  // ── Init ──
+  config.bpm=parseFloat(bpmInput.value)||120;
+  config.timeSignature=parseTS(timeSignature.value);
+  config.subdivision=parseInt(subdivisionEl.value,10);
+  config.accents=buildAccents(config.timeSignature);
+  config.masterVolume=parseFloat(masterGainEl.value);
+  renderAccents();
+  updateSilenceVis('none');
+  refreshPresetSelect();
+  bindUI();
+
+})();
+</script>
+</body>
+</html>

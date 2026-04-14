@@ -1,0 +1,1158 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>GuitarBuddy</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<style>
+  /* Reset / base */
+  *,*::before,*::after{box-sizing:border-box}
+  :root{
+    --bg:#121214; --panel:#1e1f22; --muted:#9aa0a6; --accent:#576ca8;
+    --fret-h:34px; --label-w:60px; --nut-w:6px;
+  }
+  html,body{height:100%}
+  body{
+    margin:0; font-family:Inter, Arial, Helvetica, sans-serif; background:var(--bg);
+    color:#eee; display:flex; flex-direction:column; align-items:center; padding:18px;
+  }
+  img{max-width:40%; display:block}
+  h1{margin:8px 0 14px 0; font-size:20px}
+  /* Controls */
+  .controls {
+  background:var(--panel);
+  padding:8px;
+  border-radius:4px;
+  margin:0px auto;
+  width:600px;
+  text-align:center;
+}
+  .controls-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  label{font-size:13px; color:#ddd; display:flex; align-items:center; gap:6px; }
+  select, input[type="color"], input[type="number"], button {
+    padding:6px 8px; border-radius:6px; border:1px solid #333; background:#0f1112; color:#fff; font-size:13px;
+  }
+  button{cursor:pointer}
+  /* Fretboard grid */
+  .fretboard-wrap { margin-top:14px; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:0px; width:100%; max-width:100%; }
+.fretboard {
+  display:grid;
+  grid-template-columns: var(--label-w) var(--nut-w) repeat(24, 1fr);
+  gap:2px;
+  align-items:center;
+  width:auto;
+  margin:0 auto;
+}
+  /* ADICIONADA TRANSIÇÃO DE COR */
+  .string-label { 
+    background:#111; border:1px solid #222; color:#ddd; height:var(--fret-h); display:flex; align-items:center; justify-content:center; font-weight:600; min-width:var(--label-w); 
+    transition: background-color 0.4s ease, color 0.4s ease; 
+  }
+  /* ADICIONADA TRANSIÇÃO DE COR */
+  .fret {
+    min-width:44px; height:var(--fret-h); display:flex; align-items:center; justify-content:center;
+    background:#1b1c1f; border:1px solid #232427; font-size:13px; color:#ddd; border-radius:4px;
+    transition: background-color 0.4s ease, color 0.4s ease;
+  }
+  /* Tooltip global */
+  #gb-tooltip {
+    display:none; position:fixed; background:#2a2b2f; border:1px solid #444;
+    border-radius:6px; padding:5px 10px; font-size:11px; color:#eee;
+    white-space:nowrap; z-index:99999; pointer-events:none;
+    box-shadow:0 4px 12px rgba(0,0,0,.5); line-height:1.6;
+  }
+  .empty { background:#141416; color:transparent; }
+  .small { font-size:12px; color:var(--muted); }
+  .footer-note { margin-top:20px; color:#9da3a9; font-size:12px; }
+
+  /* ADICIONADA TRANSIÇÃO DE COR/BACKGROUND */
+  .nut { 
+    width:var(--nut-w); height:var(--fret-h); background:linear-gradient(180deg,#3B3B3B,#2E2E2E); border-radius:2px; 
+    transition: background-color 0.4s ease, background 0.4s ease;
+  }
+
+  /* responsive tweak */
+  @media (max-width:900px) {
+    :root{ --label-w:50px; --fret-h:30px }
+    .fret{ min-width:36px; font-size:12px }
+  }
+
+  /* dropdown/settings */
+  .dropdown{position:relative; display:inline-block}
+  .dropbtn{background:#0f1112; color:white; padding:6px 12px; border:1px solid #333; border-radius:6px; cursor:pointer}
+  .dropdown-content{ display:none; position:absolute; background:var(--panel); min-width:200px; box-shadow:0 8px 20px rgba(0,0,0,.3); padding:14px; border-radius:12px; z-index:20 }
+  .dropdown:hover .dropdown-content{ display:block }
+  .settings-group{ margin-bottom:14px }
+  .settings-group h4{ margin:0 0 8px 0; font-size:12px; text-transform:uppercase; color:var(--muted); letter-spacing:.5px }
+  .color-picker{ position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:36px; border-radius:6px; cursor:pointer; margin-bottom:6px; font-size:13px; color:#fff; overflow:hidden }
+  .color-picker input[type=color]{ position:absolute; inset:0; width:100%; height:100%; opacity:0; z-index:2; cursor:pointer }
+  .color-picker span{ z-index:1; pointer-events:none }
+
+  /* notePicker */
+  .note-picker{ display:flex; flex-wrap:wrap; gap:0; padding:0 }
+  .note-btn{ background:#1e1f22; border:0; margin:0; color:#ddd; font-size:12px; min-width:26px; height:26px; display:flex; align-items:center; justify-content:center; cursor:pointer }
+  .note-btn.active{ background:var(--accent); color:#000 }
+
+  /* tabs */
+  .tabs{ display:flex; gap:8px; margin-bottom:12px; border-bottom:1px solid #333; flex-wrap:wrap }
+  .tab-btn{ background:#1e1f22; color:#eee; border:none; padding:8px 14px; cursor:pointer; border-radius:6px 6px 0 0; font-size:14px }
+  .tab-btn.active{ background:var(--accent); color:#000; font-weight:bold }
+  .tab-content{ background:#1e1f22; padding:12px; border-radius:0 8px 8px 8px }
+
+  /* circle */
+  svg text{ font-weight:bold; }
+
+  .mode-btns button.active{ background:var(--accent); color:#000; font-weight:bold }
+
+:root[data-theme='dark'] {
+  --bg: #121214;
+  --panel: #1e1f22;
+  --muted: #9aa0a6;
+  --accent: #576ca8;
+  --border: #333;
+  color-scheme: dark;
+}
+:root[data-theme='light'] {
+  --bg: #fafafa;
+  --panel: #ffffff;
+  --muted: #666;
+  --accent: #3b5bdb;
+  --border: #ccc;
+  color-scheme: light;
+}
+body {
+  background: var(--bg);
+  color: inherit;
+}
+select, input, button {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: inherit;
+}
+.controls, .dropbtn, .fret, .string-label {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: inherit;
+}
+
+/* Correção do tema claro */
+.string-label { 
+  background: var(--panel); 
+  color: inherit; 
+  border: 1px solid var(--border);
+}
+
+.fret {
+  background: var(--panel);
+  color: inherit;
+  border: 1px solid var(--border);
+}
+
+.empty {
+  background: var(--bg);
+  color: transparent;
+}
+
+.controls,
+.dropbtn,
+.tab-btn,
+.tab-content {
+  background: var(--panel);
+  color: inherit;
+  border: 1px solid var(--border);
+}
+
+button, select, input {
+  background: var(--panel);
+  color: inherit;
+  border: 1px solid var(--border);
+}
+
+.note-btn { 
+  background: var(--panel);
+  color: inherit;
+}
+.note-btn.active { 
+  background: var(--accent);
+  color: #fff;
+}
+
+
+/* Markers row inside the fretboard grid (aligned with frets) */
+.fretboard .marker { height: var(--marker-h,18px); display:flex; align-items:center; justify-content:center; min-width:0; }
+.fretboard .marker::before, .fretboard .marker::after { content:''; display:inline-block; width:0; height:0; border-radius:50%; background:var(--marker-color,#fff); opacity:0.95; vertical-align:middle; }
+.fretboard .marker.single::before { width:8px; height:8px; }
+.fretboard .marker.single::after { width:0; height:0; }
+.fretboard .marker.double::before, .fretboard .marker.double::after { width:8px; height:8px; margin:0 4px; }
+.fretboard .marker.empty-marker::before, .fretboard .marker.empty-marker::after { width:0; height:0; }
+.fretboard .marker { margin-top: -20px; }
+:root[data-theme='light'] { --marker-color: #000; }
+:root[data-theme='dark'] { --marker-color: #fff; }
+
+#logo {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1;
+}
+
+
+/* --- Circulo ao redor do texto nas casas da corda D --- */
+.fret.d-highlight span {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 50%;
+  border: 2px solid var(--marker-color, #fff);
+  box-sizing: border-box;
+  line-height: 1;
+}
+
+
+/* --- Circulo ao redor do texto nas casas da corda D (específico e não intrusivo) --- */
+.fret.d-highlight > span.d-circle-wrap {
+  display: flex; /* Alterado de 'inline-block' para 'flex' para alinhamento */
+  align-items: center; /* Centraliza verticalmente */
+  justify-content: center; /* Centraliza horizontalmente */
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 2px solid var(--marker-color, #fff);
+  box-sizing: border-box;
+  line-height: 1;
+  font-weight: 700;
+  background: transparent; /* keep original background visible */
+  pointer-events: none;
+  /* Garante um tamanho mínimo se o conteúdo (texto da nota) for oculto */
+  min-width: 34px; 
+  min-height: 34px;
+}
+
+/* Corrige sobreposição e clique do seletor de tom ao dar zoom */
+.note-picker {
+  position: relative;
+  z-index: 3000; /* garante que fique acima de outros elementos */
+}
+
+.note-btn {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 3100;
+}
+
+.controls {
+  position: relative;
+  z-index: 2000;
+}
+
+/* Evita que o logo ou o botão de tema bloqueiem clique */
+#logo,
+#themeToggle,
+#fullscreenToggle {
+  pointer-events: auto; /* Reativa para os botões */
+}
+
+/* --- ESTILOS PARA TELA CHEIA (FULLSCREEN) --- */
+body.fullscreen {
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important; /* Remove barra de rolagem */
+  /* Garante que o corpo cubra 100% da viewport e fique no topo */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* Oculta TUDO que não for o fretboard-wrap e fullscreen-buttons */
+body.fullscreen > *:not(.fretboard-wrap):not(.fullscreen-buttons) {
+  display: none !important;
+}
+
+/* Explicitamente oculta elementos-chave fixos/flutuantes se a regra acima falhar */
+body.fullscreen #logo,
+body.fullscreen .controls,
+body.fullscreen #media-tabs,
+body.fullscreen .footer-note {
+    display: none !important;
+}
+
+/* Ajusta o fretboard-wrap para ocupar toda a tela */
+body.fullscreen .fretboard-wrap {
+  margin: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  display: flex !important; 
+  flex-direction: column !important;
+  justify-content: center !important; /* Centraliza verticalmente */
+  align-items: center !important; /* Centraliza horizontalmente */
+  gap: 0 !important; /* Reduz o gap em FS */
+  position: absolute !important; 
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 1000 !important; /* Garante que fique por cima de tudo */
+}
+
+/* Ajusta o fretboard para ocupar o máximo de largura possível */
+body.fullscreen .fretboard {
+  max-width: 100% !important; /* Permite que ocupe 100% do wrap */
+  width: auto !important;
+  flex-shrink: 0;
+}
+
+/* Oculta a informação de afinação para maximizar o espaço */
+body.fullscreen .fretboard-wrap .small {
+  display: none !important; 
+}
+
+/* Garante que os botões de controle de tela cheia/tema fiquem visíveis */
+.fullscreen-buttons {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10001; /* Deve ser maior que o fretboard-wrap */
+    display: flex; /* Alinha os botões horizontalmente */
+    gap: 8px; /* Espaço entre os botões */
+}
+
+/* Garante que os botões de controle de tela cheia/tema fiquem visíveis em FS */
+body.fullscreen .fullscreen-buttons {
+    display: flex !important; 
+}
+
+</style>
+</head>
+<body>
+
+<div id="logo" aria-hidden="true"><img src="LogoBuddy.png" alt="Guitar Buddy logo"></div>
+
+<div class="controls" aria-label="Controles principais">
+  <div class="controls-row">
+    <div class="note-picker" id="notePicker" role="toolbar" aria-label="Selecionar tônica"></div>
+    <select id="keySelect" aria-label="Tom" hidden></select>
+
+    <label for="scaleSelect">
+      <select id="scaleSelect" aria-label="Escolher escala"></select>
+    </label>
+
+    <div class="dropdown" aria-haspopup="true">
+      <button class="dropbtn" aria-expanded="false">⚙️</button>
+      <div class="dropdown-content" role="menu" aria-hidden="true">
+        <div class="settings-group">
+          <h4>Cores</h4>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+  <div class="color-picker"><input type="color" id="rootColor" value="#D72638"><span>Tônica</span></div>
+  <div class="color-picker"><input type="color" id="textColor" value="#ffffff"><span>Texto</span></div>
+  <div class="color-picker"><input type="color" id="normalColor" value="#576ca8"><span>Casas</span></div>
+  <div class="color-picker"><input type="color" id="specialColor" value="#576ca8"><span>Referências</span></div>
+</div>
+</div>
+        <div class="settings-group">
+          <h4>Modo de Exibição</h4>
+          <div id="displayModeButtons" class="mode-btns" role="toolbar" aria-label="Modos de exibição" style="display:flex;flex-direction:column;gap:6px;align-items:stretch;">
+            <button data-mode="fret">Nº Traste</button><button data-mode="note">Notas</button>
+            <button data-mode="rootOnly">Tônica</button><button data-mode="degrees">Graus</button>
+            <button data-mode="intervals">Intervalos</button><button data-mode="rootDegrees">Tônica e Graus</button><button data-mode="tonic">Tônica</button>
+            <button data-mode="colorCode">Color code</button>
+          </div>
+          <input type="hidden" id="displayMode" value="fret">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="fretboard-wrap">
+  <div class="fretboard" id="fretboard" role="grid" aria-label="Braço da guitarra"></div>
+  <div class="small">Afinação: <strong>B E A D G B E</strong></div>
+  <div id="media-tabs" style="margin-top:60px; width:100%; max-width:1100px;">
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" data-tab="youtube_bkts" role="tab" aria-selected="true">🎥 Backing Tracks</button>
+    <button class="tab-btn" data-tab="cloud" role="tab">☁️Backing Tracks</button>
+    <button class="tab-btn" data-tab="cloud_bands" role="tab">☁️Bands Tracks</button>
+    <button class="tab-btn" data-tab="youtube_drums" role="tab">🥁Drums Tracks</button>
+<button class="tab-btn" data-tab="metronome" role="tab">🕛Metronome</button>
+    <button class="tab-btn" data-tab="learn" role="tab">🎓Learn</button>
+	<button class="tab-btn" data-tab="midi" role="tab">🎶Chords</button>
+	<button class="tab-btn" data-tab="pocket_master" role="tab">🎛PocketMaster</button>
+  </div>
+
+  <div id="tab-youtube_bkts" class="tab-content" style="display:block;">
+    <iframe width="100%" height="600" src="https://www.youtube.com/embed/videoseries?list=PLivmaEle7mlNk8qUwp3-z2ygUIK_r2iau" title="Backing Tracks" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+  </div>
+  <div id="tab-cloud" class="tab-content" style="display:none;"><iframe src="https://u.pcloud.link/publink/show?code=kZRUh15ZMTGtN8zeyQLiyUsq693yrfCzpIwV" width="100%" height="600" frameborder="0" allowfullscreen></iframe></div>
+  <div id="tab-cloud_bands" class="tab-content" style="display:none;"><iframe src="https://u.pcloud.link/publink/show?code=kZp0S15ZhdRsQdDXxPhscJBdp4P3Pm6g6P2y" width="100%" height="600" frameborder="0" allowfullscreen></iframe></div>
+  <div id="tab-youtube_drums" class="tab-content" style="display:none;"><iframe width="100%" height="600" src="https://www.youtube.com/embed/videoseries?si=BkwQ23hczSvfR-h-&amp;list=PLivmaEle7mlNUDKtNG-5GkKW9WhdfCk08" title="Drum Tracks" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>
+  <div id="tab-circle" class="tab-content" style="display:none; text-align:center;"><svg width="300" height="300" viewBox="0 0 300 300"><circle cx="150" cy="150" r="140" stroke="white" stroke-width="2" fill="none"/><g id="circleNotes"></g></svg></div>
+  <div id="tab-metronome" class="tab-content" style="display:none;">
+    <iframe src="metronome.html" width="100%" height="600" frameborder="0" allowfullscreen></iframe>
+  </div>
+  <div id="tab-learn" class="tab-content" style="display:none;"><iframe width="100%" height="600" src="https://www.youtube.com/embed/videoseries?si=yvrpM0pvaNW6MTAI&amp;list=PLivmaEle7mlPJaNGlaN3e2Pfg-2EqsO_Y" title="Learn" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>
+  <div id="tab-midi" class="tab-content" style="display:none;">
+    <iframe src="chord_gen.html" width="100%" height="600" frameborder="0" allowfullscreen></iframe>
+  </div>
+  <div id="tab-pocket_master" class="tab-content" style="display:none;">
+    <iframe src="pocketedit.html" width="100%" height="600" frameborder="0" allowfullscreen></iframe>
+  </div>
+</div>
+
+<div class="fullscreen-buttons">
+  <button id="fullscreenToggle" title="Alternar Tela Cheia" style="padding:6px 12px; border-radius:6px; border:1px solid var(--border); background:var(--panel); color:inherit; cursor:pointer;">⛶</button>
+  <button id="themeToggle" title="Alternar Modo Escuro/Claro" style="padding:6px 12px; border-radius:6px; border:1px solid var(--border); background:var(--panel); color:inherit; cursor:pointer;">🌙</button>
+</div>
+
+<div class="footer-note">Made by LBM (v260304_0947)</div>
+
+<script>
+(function(){
+/* ---------- Dados musicais ---------- */
+const notes = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const tuning7 = ["B","E","A","D","G","B","E"];
+const scaleGroups = {
+  "Major & Minor": {
+    "Major (Ionian)": [0,2,4,5,7,9,11],
+    "Natural Minor (Aeolian)": [0,2,3,5,7,8,10],
+    "Harmonic Minor": [0,2,3,5,7,8,11],
+    "Melodic Minor": [0,2,3,5,7,9,11]
+  },
+  "Modes": {
+    "Dorian": [0,2,3,5,7,9,10],
+    "Phrygian": [0,1,3,5,7,8,10],
+    "Lydian": [0,2,4,6,7,9,11],
+    "Mixolydian": [0,2,4,5,7,9,10],
+    "Locrian": [0,1,3,5,6,8,10]
+  },
+  "Pentatonic & Blues": {
+    "Major Pentatonic": [0,2,4,7,9],
+    "Minor Pentatonic": [0,3,5,7,10],
+    "Blues": [0,3,5,6,7,10]
+  },
+  "Exotic / Others": {
+    "Chromatic": [0,1,2,3,4,5,6,7,8,9,10,11],
+    "Hirajoshi": [0,2,3,7,8],
+    "Egyptian": [0,2,5,7,10]
+  }
+};
+const scales = Object.assign({}, ...Object.values(scaleGroups).map(g=>g));
+
+/* ---------- Elementos UI ---------- */
+const el = id => document.getElementById(id);
+const scaleSelect = el('scaleSelect'), keySelect = el('keySelect'), displayMode = el('displayMode');
+const specialColor = el('specialColor'), normalColor = el('normalColor'), textColor = el('textColor');
+const rootColor = el('rootColor'), fretboardEl = el('fretboard');
+
+const casasNegrito = new Set([3,5,7,9,12,15,17,19,21,24]);
+  const reversedTuning = [...tuning7].slice().reverse();
+
+/* ---------- Color code map ---------- */
+const noteColors = {
+  "C": "#03a343",
+  "C#": "#03A293",
+  "D": "#03a0e3",
+  "D#": "#216DB9",
+  "E": "#3f398f",
+  "F": "#d13c90",
+  "F#": "#DE2664",
+  "G": "#eb1038",
+  "G#": "#EF4D1D",
+  "A": "#f38902",
+  "A#": "#F9AF05",
+  "B": "#ffd507"
+};
+
+/* POPULATE UI */
+(function populateUI(){
+  Object.entries(scaleGroups).forEach(([label, group]) => {
+    const og = document.createElement('optgroup'); og.label = label;
+    Object.keys(group).forEach(name => {
+      const o = document.createElement('option'); o.value = name; o.textContent = name; og.appendChild(o);
+    });
+    scaleSelect.appendChild(og);
+  });
+  notes.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; keySelect.appendChild(o); });
+
+  // note picker toolbar
+  const notePicker = el('notePicker');
+  notes.forEach(n => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = n;
+    btn.className = 'note-btn';
+    btn.setAttribute('aria-pressed','false');
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.note-btn').forEach(b=>{b.classList.remove('active'); b.setAttribute('aria-pressed','false')});
+      btn.classList.add('active'); btn.setAttribute('aria-pressed','true');
+      keySelect.value = n;
+      drawFretboard();
+    });
+    notePicker.appendChild(btn);
+  });
+  // default selection C
+  const firstBtn = notePicker.querySelector('.note-btn');
+  if(firstBtn){ firstBtn.classList.add('active'); firstBtn.setAttribute('aria-pressed','true'); keySelect.value = notes[0]; }
+})();
+
+
+/* Utilities */
+function getDegreeLabel(noteIdx, rootIndex, scalePattern) {
+  const semitoneDistance = (noteIdx - rootIndex + 12) % 12;
+  const degree = scalePattern.findIndex(semi => semi === semitoneDistance);
+  return degree >= 0 ? String(degree + 1) : '';
+}
+function getIntervalLabel(noteIdx, rootIndex) {
+  const semitoneDistance = (noteIdx - rootIndex + 12) % 12;
+  const intervalNames = ["R","m2","M2","m3","M3","P4","TT","P5","m6","M6","m7","M7"];
+  return intervalNames[semitoneDistance] || '';
+}
+
+/* ---------- Fretboard rendering (modificado: linha de cabeçalho removida) ---------- */
+function createFretboardTemplate(){
+  // returns a DocumentFragment with 7 string rows and a marker row
+  const frag = document.createDocumentFragment();
+  
+  // A linha de cabeçalho (🤘, NUT e números de traste 1-24) foi removida.
+  
+  // string rows: label + nut + 24 cells (placeholders)
+  // reversed tuning to match original
+  reversedTuning.forEach((stringNote, stringIdx) => {
+    const lbl = document.createElement('div'); lbl.className='string-label'; lbl.dataset.stringIdx = stringIdx; lbl.textContent = stringNote;
+    frag.appendChild(lbl);
+    const nutCell = document.createElement('div'); nutCell.className = 'nut'; frag.appendChild(nutCell);
+    for(let f=1; f<=24; f++){
+      const cell = document.createElement('div'); cell.className='fret'; cell.dataset.fret = f; cell.dataset.stringIdx = stringIdx;
+      frag.appendChild(cell);
+    }
+  });
+  // markers row (aligned inside same grid)
+  const markerLabel = document.createElement('div'); markerLabel.className='string-label'; markerLabel.style.visibility='hidden'; frag.appendChild(markerLabel);
+  const markerNut = document.createElement('div'); markerNut.className='nut'; markerNut.style.visibility='hidden'; frag.appendChild(markerNut);
+  const markerFrets = [3,5,7,9,12,15,17,19,21,24];
+  for(let f=1; f<=24; f++){
+    const m = document.createElement('div'); m.className='marker'; m.dataset.fret = f;
+    if(markerFrets.includes(f)){
+      if(f===12 || f===24){ m.classList.add('double'); }
+      else { m.classList.add('single'); }
+    } else {
+      m.classList.add('empty-marker');
+    }
+    frag.appendChild(m);
+  }
+  return frag;
+}
+
+// Build initial template once
+fretboardEl.appendChild(createFretboardTemplate());
+
+// Helper to query cells quickly
+// Ajustado para strings e cells, já que o header foi removido.
+function queryCells(){ return { stringLabels: Array.from(fretboardEl.querySelectorAll('.string-label')), stringCells: Array.from(fretboardEl.querySelectorAll('.fret')).filter(c=>c.closest('.fretboard') && c.dataset.stringIdx !== undefined) } }
+
+// Hidden lists
+let hiddenStrings = [], hiddenFrets = [];
+
+function drawFretboard(){
+  // Atualizar cores dos botões das notas no modo Color Code
+  const noteButtons = document.querySelectorAll('.note-btn');
+  noteButtons.forEach(btn => {
+    const note = btn.textContent.trim();
+    if(displayMode.value === 'colorCode'){
+      btn.style.background = noteColors[note] || btn.style.background;
+      btn.style.color = '#fff';
+    } else {
+      btn.style.background = '';
+      btn.style.color = '';
+    }
+  });
+
+  const scaleName = scaleSelect.value || Object.keys(scales)[0];
+  const key = keySelect.value || notes[0];
+  const show = displayMode.value || 'fret';
+  const special = specialColor.value || '#576ca8';
+  const normal = normalColor.value || '#576ca8';
+  const txtColor = textColor.value || '#ffffff';
+  const rootCol = rootColor.value || '#D72638';
+
+  const rootIndex = notes.indexOf(key);
+  const scalePattern = scales[scaleName] || scales[Object.keys(scales)[0]];
+  const scaleNotesIdx = new Set(scalePattern.map(i => (rootIndex + i) % 12));
+
+  // Atualiza marcadores (bolinhas) abaixo dos trastes. Estes marcadores permanecem.
+  const markerEls = Array.from(fretboardEl.querySelectorAll('.marker[data-fret]'));
+  markerEls.forEach(m => { 
+    const mf = Number(m.dataset.fret); 
+    // Mantenha o estilo de opacidade do marcador ligado à ocultação do traste, se desejar reintroduzir a ocultação de trastes no futuro
+    m.style.opacity = hiddenFrets.includes(mf) ? '0.4' : '1'; 
+  });
+
+
+  // ---- Atualizar labels das cordas ----
+// Agora, todos os 'string-label' na grade são os labels das cordas (exceto o último invisível)
+const stringLabelEls = Array.from(fretboardEl.querySelectorAll('.string-label[data-string-idx]'));
+stringLabelEls.forEach(lbl => {
+  const stringIdx = Number(lbl.dataset.stringIdx);
+  const stringNote = reversedTuning[stringIdx];
+  const stringStart = notes.indexOf(stringNote);
+  const isOpenInScale = scaleNotesIdx.has(stringStart);
+  const isHidden = hiddenStrings.includes(stringIdx);
+
+  if (isHidden) {
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+    const muted = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim();
+    lbl.style.background = bg;
+    if(!isHidden && displayMode.value === 'colorCode') { lbl.style.background = noteColors[stringNote] || lbl.style.background; }
+    lbl.style.color = muted;
+    lbl.style.fontWeight = '600';
+    lbl.style.opacity = '0.4';
+  } else {
+    lbl.style.opacity = '1';
+    if (isOpenInScale) {
+      if(displayMode.value === 'colorCode') lbl.style.background = noteColors[stringNote] || special;
+      else lbl.style.background = (stringStart === rootIndex) ? rootCol : special;
+    if(!isHidden && displayMode.value === 'colorCode') { lbl.style.background = noteColors[stringNote] || lbl.style.background; }
+      lbl.style.color = txtColor;
+      lbl.style.fontWeight = 'bold';
+    } else {
+      const panel = getComputedStyle(document.documentElement).getPropertyValue('--panel').trim();
+      const muted = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim();
+      lbl.style.background = panel;
+    if(!isHidden && displayMode.value === 'colorCode') { lbl.style.background = noteColors[stringNote] || lbl.style.background; }
+      lbl.style.color = muted;
+      lbl.style.fontWeight = '600';
+    }
+  }
+
+  if(!lbl._clickAttached){
+    lbl.addEventListener('click', ()=>{
+      hiddenStrings = hiddenStrings.includes(stringIdx)
+        ? hiddenStrings.filter(s=>s!==stringIdx)
+        : [...hiddenStrings, stringIdx];
+      drawFretboard();
+    });
+    lbl._clickAttached = true;
+  }
+});
+// ---- Atualizar cada casa das cordas ----
+  const cellEls = Array.from(fretboardEl.querySelectorAll('.fret[data-string-idx], .nut[data-string-idx]'));
+  cellEls.forEach(cell => {
+    // Se for o nut da corda (posição 0)
+    if(cell.classList.contains('nut')) {
+      // NOTE: Ajuste na lógica para determinar stringIdx, pois a primeira linha da grade não é mais o cabeçalho.
+      // Precisa de um jeito robusto para ligar o nut à label da corda. No DOM atual, o nut está imediatamente
+      // após a label da corda.
+      const stringLabel = cell.previousElementSibling;
+      if (!stringLabel || !stringLabel.dataset.stringIdx) return; // Se não for um nut de corda válido, pular
+      
+      const stringIdx = Number(stringLabel.dataset.stringIdx);
+      const stringNote = reversedTuning[stringIdx];
+      const noteIdx = notes.indexOf(stringNote);
+      const isInScale = scaleNotesIdx.has(noteIdx);
+      const hiddenByString = hiddenStrings.includes(stringIdx);
+      
+      const isHidden = !isInScale || hiddenByString;
+
+      cell.classList.toggle('empty', isHidden);
+      
+      let bg = isHidden ? getComputedStyle(document.documentElement).getPropertyValue('--bg') : 
+               (noteIdx === rootIndex) ? rootCol : special; 
+
+      if(!isHidden && displayMode.value === 'colorCode'){
+        bg = noteColors[notes[noteIdx]] || special;
+      }
+      
+      cell.style.background = bg;
+      cell.style.color = 'transparent'; 
+      return;
+    }
+    
+    // Se for um fret normal
+    const f = Number(cell.dataset.fret);
+    const stringIdx = Number(cell.dataset.stringIdx);
+    const stringNote = reversedTuning[stringIdx];
+    const noteIdx = (notes.indexOf(stringNote) + f) % 12;
+    const isInScale = scaleNotesIdx.has(noteIdx);
+    const hiddenByString = hiddenStrings.includes(stringIdx);
+    const hiddenByFret = hiddenFrets.includes(f);
+    const isHidden = !isInScale || hiddenByString || hiddenByFret;
+
+    cell.classList.toggle('empty', isHidden);
+    // background rules: if hidden -> theme bg; else root -> rootCol; else reference frets -> special; else normal
+    let bg = isHidden ? getComputedStyle(document.documentElement).getPropertyValue('--bg') :
+             (noteIdx===rootIndex) ? rootCol :
+             ([0,3,5,7,9,12,15,17,19,21,24].includes(f) ? special : normal);
+
+    // If Color Code mode active, override background per note color (only when not hidden)
+    if(!isHidden && displayMode.value === 'colorCode'){
+      bg = noteColors[notes[noteIdx]] || normal;
+    }
+
+    cell.style.background = bg;
+    cell.style.color = isHidden ? 'transparent' : txtColor;
+
+    // content based on mode
+    let content = '';
+    if(!isHidden){
+      if(show === 'fret') content = String(f);
+      else if(show === 'note') content = notes[noteIdx];
+      else if(show === 'rootOnly') content = (noteIdx===rootIndex)?notes[noteIdx]:'';
+      else if(show === 'degrees') content = getDegreeLabel(noteIdx, rootIndex, scalePattern);
+      else if(show === 'intervals') content = getIntervalLabel(noteIdx, rootIndex);
+      else if(show === 'rootDegrees') content = (noteIdx===rootIndex)?notes[noteIdx]:getDegreeLabel(noteIdx, rootIndex, scalePattern);
+      else if(show === 'tonic') content = (noteIdx===rootIndex)?notes[noteIdx]:'';
+      else if(show === 'colorCode') {
+        // show the note name; color already applied to background above
+        content = notes[noteIdx];
+      }
+    }
+    cell.textContent = content;
+    // Tooltip: grava dados no atributo, renderizado pelo listener global
+    if(!isHidden){
+      const intervalFullNames = ["Tônica","2ª menor","2ª maior","3ª menor","3ª maior","4ª justa","Trítono","5ª justa","6ª menor","6ª maior","7ª menor","7ª maior"];
+      const intervalShort    = ["R","m2","M2","m3","M3","P4","TT","P5","m6","M6","m7","M7"];
+      const semitones = (noteIdx - rootIndex + 12) % 12;
+      const degree = getDegreeLabel(noteIdx, rootIndex, scalePattern);
+      const iv = intervalShort[semitones] || '';
+      const ivFull = intervalFullNames[semitones] || '';
+      let lines = ['<b>' + notes[noteIdx] + '</b> &nbsp;·&nbsp; Traste ' + f];
+      if(degree) lines.push('Grau ' + degree + 'º &nbsp;·&nbsp; ' + iv + ' (' + ivFull + ')');
+      cell.dataset.tipData = lines.join('<br>');
+    } else {
+      delete cell.dataset.tipData;
+    }
+    cell.style.fontWeight = casasNegrito.has(f) ? 'bold' : 'normal';
+    cell.style.fontSize = casasNegrito.has(f) ? '14px' : '13px';
+
+    if(!cell._clickAttached){
+      // Mantemos o click para ocultar trastes individuais, caso o usuário queira.
+      cell.addEventListener('click', ()=>{ const ff = Number(cell.dataset.fret); hiddenFrets = hiddenFrets.includes(ff)? hiddenFrets.filter(x=>x!==ff) : [...hiddenFrets, ff]; drawFretboard(); });
+      cell._clickAttached = true;
+    }
+  });
+}
+
+/* initial draw after DOM ready */
+document.addEventListener('DOMContentLoaded', ()=>{
+  // set defaults
+  if(!scaleSelect.value) scaleSelect.value = Object.keys(scales)[0];
+  if(!keySelect.value) keySelect.value = notes[0];
+  drawFretboard();
+});
+
+/* UI bindings */
+scaleSelect.addEventListener('change', drawFretboard);
+keySelect.addEventListener('change', drawFretboard);
+displayMode.addEventListener('change', drawFretboard);
+['input','change'].forEach(evt=>{ specialColor.addEventListener(evt, drawFretboard); normalColor.addEventListener(evt, drawFretboard); textColor.addEventListener(evt, drawFretboard); rootColor.addEventListener(evt, drawFretboard); });
+
+/* circle of notes */
+function createCircleNotes() {
+  const g = document.getElementById("circleNotes");
+  if (!g) return;
+  g.innerHTML = "";
+  const centerX=150, centerY=150, radius=120;
+  notes.forEach((note,i)=>{
+    const angle=(i/12)*2*Math.PI - Math.PI/2;
+    const x=centerX + radius*Math.cos(angle);
+    const y=centerY + radius*Math.sin(angle);
+    const id = note.replace('#','s');
+    const grp = document.createElementNS("http://www.w3.org/2000/svg","g"); grp.setAttribute("id","circleGroup-"+id);
+    const bg = document.createElementNS("http://www.w3.org/2000/svg","circle");
+    bg.setAttribute("id","circleBg-"+id); bg.setAttribute("cx",x); bg.setAttribute("cy",y); bg.setAttribute("r","18");
+    bg.setAttribute("fill","transparent"); bg.setAttribute("visibility","hidden"); grp.appendChild(bg);
+    const text = document.createElementNS("http://www.w3.org/2000/svg","text"); text.setAttribute("id","circleText-"+id);
+    text.setAttribute("x",x); text.setAttribute("y",y+2); text.setAttribute("text-anchor","middle"); text.setAttribute("alignment-baseline","middle");
+    text.setAttribute("fill", textColor.value || "#ffffff"); text.setAttribute("font-size","12"); text.textContent = note;
+    grp.appendChild(text); g.appendChild(grp);
+  });
+}
+function highlightCircleNotes(scaleNotes){
+  const root = keySelect.value || notes[0];
+  const scaleName = scaleSelect.value || Object.keys(scales)[0];
+  const rootIdx = notes.indexOf(root);
+  const scalePattern = scales[scaleName] || [];
+  if(!Array.isArray(scaleNotes)) scaleNotes = scalePattern.map(i => notes[(rootIdx+i)%12]);
+  const special = specialColor.value || '#576ca8', normal = normalColor.value || '#576ca8';
+  const txt = textColor.value || '#ffffff', rootCol = rootColor.value || '#D72638';
+  notes.forEach(note=>{
+    const id = note.replace('#','s'); const textEl = document.getElementById("circleText-"+id); const bg = document.getElementById("circleBg-"+id);
+    const noteIdx = notes.indexOf(note); const degree = getDegreeLabel(noteIdx, rootIdx, scalePattern);
+    if(!textEl || !bg) return;
+    if(degree){
+      textEl.textContent = note + " (" + degree + ")";
+      if(degree === '1'){ bg.setAttribute("fill", rootCol); bg.setAttribute("visibility","visible"); textEl.setAttribute("fill","#ffffff"); textEl.setAttribute("font-size","14"); }
+      else { bg.setAttribute("visibility","hidden"); const isOpen = tuning7.includes(note); textEl.setAttribute("fill", isOpen ? special : normal); textEl.setAttribute("font-size","12"); }
+    } else { bg.setAttribute("visibility","hidden"); textEl.textContent = note; textEl.setAttribute("fill", txt); textEl.setAttribute("font-size","12"); }
+  });
+}
+
+/* wire circle update */
+document.addEventListener("DOMContentLoaded", ()=>{ createCircleNotes(); setTimeout(()=>{ highlightCircleNotes(); },50); });
+['change','input'].forEach(evt=>{ scaleSelect.addEventListener(evt, ()=>highlightCircleNotes()); keySelect.addEventListener(evt, ()=>highlightCircleNotes()); specialColor.addEventListener(evt, ()=>highlightCircleNotes()); normalColor.addEventListener(evt, ()=>highlightCircleNotes()); textColor.addEventListener(evt, ()=>highlightCircleNotes()); });
+
+/* Tabs */
+document.querySelectorAll(".tab-btn").forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll(".tab-content").forEach(c=>c.style.display='none');
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.getAttribute('data-tab')).style.display='block';
+  });
+});
+
+/* display mode buttons */
+document.querySelectorAll('#displayModeButtons button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#displayModeButtons button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('displayMode').value = btn.dataset.mode;
+    drawFretboard();
+  });
+});
+// default active
+const defaultBtn = document.querySelector('#displayModeButtons button[data-mode="fret"]');
+if(defaultBtn) defaultBtn.classList.add('active');
+
+/* color picker background sync */
+document.querySelectorAll('.color-picker input[type=color]').forEach(input=>{
+  const picker = input.closest('.color-picker');
+  if(picker) picker.style.background = input.value;
+  input.addEventListener('input', ()=>{ if(picker) picker.style.background = input.value; drawFretboard(); });
+});
+
+/* Wake lock: feature-detect */
+let wakeLock = null;
+async function keepScreenOn(){
+  try{
+    if('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+  }catch(e){ console.warn('wakeLock unavailable', e && e.message); }
+}
+document.addEventListener('visibilitychange', ()=>{ if(wakeLock !== null && document.visibilityState === 'visible') keepScreenOn(); });
+document.addEventListener('DOMContentLoaded', keepScreenOn);
+
+/* expose drawFretboard for debugging */
+window.GuitarBuddy = { drawFretboard };
+
+
+/* Fullscreen Toggle Logic */
+const fullscreenToggle = el('fullscreenToggle');
+const body = document.body;
+
+function toggleFullscreen() {
+    const isFullscreen = body.classList.toggle('fullscreen');
+    // Mudar o ícone do botão. Usaremos '×' (multiplicação/fechar) para sair.
+    fullscreenToggle.textContent = isFullscreen ? '×' : '⛶'; 
+    fullscreenToggle.title = isFullscreen ? 'Sair da Tela Cheia' : 'Entrar em Tela Cheia';
+
+    // Usar a API nativa do navegador (para maximizar a área de visualização)
+    if (isFullscreen) {
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen();
+        } else if (document.documentElement.webkitRequestFullscreen) { /* Safari */
+            document.documentElement.webkitRequestFullscreen();
+        } else if (document.documentElement.msRequestFullscreen) { /* IE11 */
+            document.documentElement.msRequestFullscreen();
+        }
+    } else {
+        // Se sair do modo, tentamos sair da API de Fullscreen nativa.
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) { /* Safari */
+            document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) { /* IE11 */
+            document.documentElement.msExitFullscreen();
+        }
+    }
+}
+
+// Ouvinte para o botão
+if (fullscreenToggle) {
+    fullscreenToggle.addEventListener('click', toggleFullscreen);
+}
+
+// Ouvinte para sair do Fullscreen usando a tecla ESC (ou a ação nativa do navegador)
+document.addEventListener('fullscreenchange', () => {
+    const isNativeFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+    if (!isNativeFullscreen && body.classList.contains('fullscreen')) {
+        // Se o usuário saiu do modo nativo (ex: tecla ESC), removemos a classe CSS
+        body.classList.remove('fullscreen');
+        fullscreenToggle.textContent = '⛶';
+        fullscreenToggle.title = 'Entrar em Tela Cheia';
+    }
+});
+/* Fim da lógica Fullscreen */
+
+})(); // end IIFE
+</script>
+
+
+<script>
+(function(){
+  const root = document.documentElement;
+  const btn = document.getElementById('themeToggle');
+  const stored = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  root.setAttribute('data-theme', stored);
+  btn.textContent = stored === 'dark' ? '☀️' : '🌙';
+  btn.addEventListener('click', ()=>{
+    const current = root.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+    btn.textContent = next === 'dark' ? '☀️' : '🌙';
+  if (window.GuitarBuddy && typeof window.GuitarBuddy.drawFretboard === 'function') {
+    window.GuitarBuddy.drawFretboard();
+  }
+  });
+})();
+</script>
+
+<script>
+// --- Círculos persistentes (não somem ao ocultar notas) ---
+(function(){
+  const D_STRING_FRETS = new Set([3,5,7,9,15,17,19,21]);
+  const GA_STRING_FRETS = new Set([12,24]);
+  function getIndexOf(note){
+    const fb = document.getElementById('fretboard');
+    if(!fb) return -1;
+    // O primeiro string-label é B (última corda da afinação), que agora é o primeiro label da grade
+    const labels = Array.from(fb.querySelectorAll('.string-label[data-string-idx]'));
+    for(const lbl of labels){
+      if(lbl.textContent.trim().toUpperCase() === note) return Number(lbl.dataset.stringIdx);
+    }
+    return -1;
+  }
+  function applyCircles(){
+    const fb = document.getElementById('fretboard');
+    if(!fb) return;
+    const dIndex = getIndexOf('D');
+    const gIndex = getIndexOf('G');
+    const aIndex = getIndexOf('A');
+    const cells = Array.from(fb.querySelectorAll('.fret[data-string-idx]'));
+    cells.forEach(cell => {
+      const f = Number(cell.dataset.fret);
+      const s = Number(cell.dataset.stringIdx);
+      let shouldApply = false;
+      if(s === dIndex && D_STRING_FRETS.has(f)) shouldApply = true;
+      if((s === gIndex || s === aIndex) && GA_STRING_FRETS.has(f)) shouldApply = true;
+
+      if(shouldApply){
+        if(!cell.classList.contains('d-highlight')) cell.classList.add('d-highlight');
+        // always ensure wrapper exists
+        const existing = cell.querySelector(':scope > span.d-circle-wrap');
+        if(!existing){
+          const wrapper = document.createElement('span');
+          wrapper.className = 'd-circle-wrap';
+          // se houver texto, movemos para dentro; senão mantemos wrapper vazio
+          while(cell.firstChild){
+            wrapper.appendChild(cell.firstChild);
+          }
+          cell.appendChild(wrapper);
+        }
+      } else {
+        // remove wrapper se não for mais necessário
+        if(cell.classList.contains('d-highlight')) cell.classList.remove('d-highlight');
+        const existing = cell.querySelector(':scope > span.d-circle-wrap');
+        if(existing){
+          const parent = existing.parentNode;
+          while(existing.firstChild){
+            parent.insertBefore(existing.firstChild, existing);
+          }
+          parent.removeChild(existing);
+        }
+      }
+    });
+  }
+
+  function setup(){
+    applyCircles();
+    const fb = document.getElementById('fretboard');
+    if(!fb) return;
+    const mo = new MutationObserver(()=>{
+      clearTimeout(window.__circle_apply_timeout);
+      window.__circle_apply_timeout = setTimeout(()=>{ applyCircles(); },40);
+    });
+    mo.observe(fb,{childList:true,subtree:true,characterData:true});
+    try{
+      if(window.GuitarBuddy && typeof window.GuitarBuddy.drawFretboard==='function'){
+        const orig = window.GuitarBuddy.drawFretboard;
+        window.GuitarBuddy.drawFretboard = function(){
+          const res = orig.apply(this, arguments);
+          setTimeout(applyCircles, 20);
+          return res;
+        };
+      }
+    }catch(e){console.warn('circle patch fail', e);}
+  }
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',setup);} else {setup();}
+})();
+</script>
+<script>
+// --- Círculos persistentes (não somem ao ocultar notas) ---
+(function(){
+  const D_STRING_FRETS = new Set([3,5,7,9,15,17,19,21]);
+  const GA_STRING_FRETS = new Set([12,24]);
+  function getIndexOf(note){
+    const fb = document.getElementById('fretboard');
+    if(!fb) return -1;
+    const labels = Array.from(fb.querySelectorAll('.string-label[data-string-idx]'));
+    for(const lbl of labels){
+      if(lbl.textContent.trim().toUpperCase() === note) return Number(lbl.dataset.stringIdx);
+    }
+    return -1;
+  }
+  function applyCircles(){
+    const fb = document.getElementById('fretboard');
+    if(!fb) return;
+    const dIndex = getIndexOf('D');
+    const gIndex = getIndexOf('G');
+    const aIndex = getIndexOf('A');
+    const cells = Array.from(fb.querySelectorAll('.fret[data-string-idx]'));
+    cells.forEach(cell => {
+      const f = Number(cell.dataset.fret);
+      const s = Number(cell.dataset.stringIdx);
+      let shouldApply = false;
+      if(s === dIndex && D_STRING_FRETS.has(f)) shouldApply = true;
+      if((s === gIndex || s === aIndex) && GA_STRING_FRETS.has(f)) shouldApply = true;
+
+      if(shouldApply){
+        if(!cell.classList.contains('d-highlight')) cell.classList.add('d-highlight');
+        // always ensure wrapper exists
+        const existing = cell.querySelector(':scope > span.d-circle-wrap');
+        if(!existing){
+          const wrapper = document.createElement('span');
+          wrapper.className = 'd-circle-wrap';
+          // se houver texto, movemos para dentro; senão mantemos wrapper vazio
+          while(cell.firstChild){
+            wrapper.appendChild(cell.firstChild);
+          }
+          cell.appendChild(wrapper);
+        }
+      } else {
+        // remove wrapper se não for mais necessário
+        if(cell.classList.contains('d-highlight')) cell.classList.remove('d-highlight');
+        const existing = cell.querySelector(':scope > span.d-circle-wrap');
+        if(existing){
+          const parent = existing.parentNode;
+          while(existing.firstChild){
+            parent.insertBefore(existing.firstChild, existing);
+          }
+          parent.removeChild(existing);
+        }
+      }
+    });
+  }
+
+  function setup(){
+    applyCircles();
+    const fb = document.getElementById('fretboard');
+    if(!fb) return;
+    const mo = new MutationObserver(()=>{
+      clearTimeout(window.__circle_apply_timeout);
+      window.__circle_apply_timeout = setTimeout(()=>{ applyCircles(); },40);
+    });
+    mo.observe(fb,{childList:true,subtree:true,characterData:true});
+    try{
+      if(window.GuitarBuddy && typeof window.GuitarBuddy.drawFretboard==='function'){
+        const orig = window.GuitarBuddy.drawFretboard;
+        window.GuitarBuddy.drawFretboard = function(){
+          const res = orig.apply(this, arguments);
+          setTimeout(applyCircles, 20);
+          return res;
+        };
+      }
+    }catch(e){console.warn('circle patch fail', e);}
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup); else setup();
+})();
+</script>
+<script>
+/* --- Repair: ensure keySelect has all notes and note-picker buttons work --- */
+(function(){
+  const NOTES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  function ensureKeySelect(){
+    const ks = document.getElementById('keySelect');
+    if(!ks) return;
+    // If options missing or incomplete, rebuild options
+    const existing = Array.from(ks.options).map(o=>o.value.trim());
+    const needRebuild = NOTES.some(n => !existing.includes(n));
+    if(needRebuild){
+      ks.innerHTML = '';
+      NOTES.forEach(n=>{
+        const o = document.createElement('option');
+        o.value = n; o.textContent = n;
+        ks.appendChild(o);
+      });
+    }
+    // If no value selected, default to C
+    if(!ks.value) ks.value = 'C';
+  }
+
+  function wireNoteButtons(){
+    const btns = document.querySelectorAll('.note-btn');
+    if(!btns || btns.length===0) return;
+    btns.forEach(btn=>{
+      if(btn.__wired) return;
+      btn.addEventListener('click', ()=>{
+        const ks = document.getElementById('keySelect');
+        if(ks){
+          ks.value = btn.textContent.trim();
+          // trigger change event if needed
+          ks.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        // call drawFretboard if present
+        try{ if(window.GuitarBuddy && typeof window.GuitarBuddy.drawFretboard==='function') window.GuitarBuddy.drawFretboard(); }
+        catch(e){ /* ignore */ }
+      });
+      btn.__wired = true;
+    });
+  }
+
+  function setup(){
+    ensureKeySelect();
+    wireNoteButtons();
+    // observe DOM in case UI is re-rendered
+    const mo = new MutationObserver(()=>{
+      ensureKeySelect();
+      wireNoteButtons();
+    });
+    const fb = document.getElementById('fretboard') || document.body;
+    mo.observe(fb, { childList:true, subtree:true });
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup); else setup();
+})();</script>
+
+<div id="gb-tooltip"></div>
+<script>
+// --- Tooltip global para casas do fretboard ---
+(function(){
+  const tip = document.getElementById('gb-tooltip');
+  const intervalFullNames = ["Tônica","2ª menor","2ª maior","3ª menor","3ª maior","4ª justa","Trítono","5ª justa","6ª menor","6ª maior","7ª menor","7ª maior"];
+  const intervalShort    = ["R","m2","M2","m3","M3","P4","TT","P5","m6","M6","m7","M7"];
+  const notes = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+
+  document.getElementById('fretboard').addEventListener('mouseover', function(e){
+    const cell = e.target.closest('.fret[data-fret]');
+    if(!cell || cell.classList.contains('empty')) { tip.style.display='none'; return; }
+
+    // Ler dados já calculados no data attribute
+    const td = cell.dataset.tipData;
+    if(!td) { tip.style.display='none'; return; }
+    tip.innerHTML = td;
+    tip.style.display = 'block';
+  });
+
+  document.getElementById('fretboard').addEventListener('mouseout', function(e){
+    const cell = e.target.closest('.fret[data-fret]');
+    if(cell) tip.style.display = 'none';
+  });
+
+  document.addEventListener('mousemove', function(e){
+    if(tip.style.display === 'none') return;
+    const x = e.clientX + 14, y = e.clientY - 44;
+    tip.style.left = Math.min(x, window.innerWidth - tip.offsetWidth - 8) + 'px';
+    tip.style.top  = Math.max(y, 4) + 'px';
+  });
+})();
+</script>
+</body>
+</html>

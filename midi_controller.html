@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>MIDI Controller</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      background:#0b0b0b;
+      color:#e6e6e6;
+      font-family:Arial, sans-serif;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      min-height:100vh;
+      gap:20px;
+      padding:20px;
+      box-sizing:border-box;
+    }
+    h1 { font-size:22px; margin:0; }
+    select, input {
+      padding:6px;
+      border-radius:6px;
+      border:1px solid #333;
+      background:#1a1a1a;
+      color:#e6e6e6;
+    }
+    .grid {
+      display:grid;
+      grid-template-columns:repeat(4, 120px);
+      gap:12px;
+    }
+    .pad {
+      width:120px;
+      height:80px;
+      border-radius:10px;
+      background:#1f1f1f;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:bold;
+      cursor:pointer;
+      user-select:none;
+      border:1px solid #333;
+      transition:background .1s, transform .1s;
+    }
+    .pad.active {
+      background:#2aa3ff;
+      color:#000;
+      transform:translateY(2px);
+    }
+    .topbar {
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      justify-content:center;
+    }
+    .bank-grid {
+      display:grid;
+      grid-template-columns:repeat(4, 120px);
+      gap:12px;
+      margin-top:8px;
+      justify-content:center;
+    }
+    .bank-btn {
+      width:120px;
+      height:40px;
+      border-radius:8px;
+      background:#161616;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:13px;
+      cursor:pointer;
+      user-select:none;
+      border:1px solid #333;
+      transition:background .08s, transform .08s;
+    }
+    .bank-btn.active {
+      background:#7be0ff;
+      color:#000;
+      transform:translateY(1px);
+    }
+    #status { margin-top:8px; }
+    footer {
+      font-size:12px;
+      color:#aaa;
+      margin-top:20px;
+    }
+    @media (max-width:720px) {
+      .grid, .bank-grid { grid-template-columns:repeat(2,120px); }
+    }
+  </style>
+</head>
+<body>
+  <h1>AmpliTube 5 MIDI Controller</h1>
+
+  <div class="topbar">
+    <label>MIDI Device:
+      <select id="midiOut"><option>— aguardando —</option></select>
+    </label>
+    <label>Channel:
+      <select id="channel">
+        <script>
+          for(let i=1;i<=16;i++)document.write(`<option value="${i-1}">${i}</option>`);
+        </script>
+      </select>
+    </label>
+  </div>
+
+  <div class="grid" id="pads"></div>
+  <div class="bank-grid" id="banks" aria-label="Botões de banco"></div>
+
+  <div id="status">Status: inicializando...</div>
+  <footer>Made by LBM (v291010)</footer>
+
+<!-- 🔧 LISTAS SIMPLES DE NOMES PARA EDIÇÃO -->
+<script>
+  const NOMES_PADS = ["🔺Preset", "2", "3", "4", "🔻️Preset", "6", "7", "▶️"];
+  const NOMES_BANCOS = [
+    "JP Lead", "Heavy Riff", "Black Album", "4", "Clean", "6",
+    "7", "8", "9", "10", "11", "12"
+  ];
+</script>
+
+<script>
+(() => {
+  const padsContainer = document.getElementById('pads');
+  const banksContainer = document.getElementById('banks');
+  const midiOutSelect = document.getElementById('midiOut');
+  const status = document.getElementById('status');
+  const channelSelect = document.getElementById('channel');
+
+  let midiAccess = null;
+  let midiOutput = null;
+  const PAD_COUNT = NOMES_PADS.length;
+  const BANK_COUNT = NOMES_BANCOS.length;
+
+  // Cria botões principais (pads)
+  for (let i = 0; i < PAD_COUNT; i++) {
+    const pad = document.createElement('div');
+    pad.className = 'pad';
+    pad.textContent = NOMES_PADS[i] || `Botão ${i+1}`;
+    pad.dataset.index = i;
+    padsContainer.appendChild(pad);
+
+    pad.addEventListener('mousedown', e => {
+      e.preventDefault();
+      pad.classList.add('active');
+      sendCC(i, 127);
+    });
+    pad.addEventListener('mouseup', e => {
+      e.preventDefault();
+      pad.classList.remove('active');
+      sendCC(i, 0);
+    });
+    pad.addEventListener('mouseleave', e => {
+      pad.classList.remove('active');
+      sendCC(i, 0);
+    });
+    pad.addEventListener('touchstart', e => {
+      e.preventDefault();
+      pad.classList.add('active');
+      sendCC(i, 127);
+    }, {passive:false});
+    pad.addEventListener('touchend', e => {
+      pad.classList.remove('active');
+      sendCC(i, 0);
+    });
+  }
+
+  // Cria botões de banco
+  for (let b = 0; b < BANK_COUNT; b++) {
+    const btn = document.createElement('div');
+    btn.className = 'bank-btn';
+    btn.textContent = NOMES_BANCOS[b] || `Banco ${b+1}`;
+    btn.dataset.bank = b;
+    banksContainer.appendChild(btn);
+
+    btn.addEventListener('click', () => {
+      Array.from(banksContainer.children).forEach(n => n.classList.remove('active'));
+      btn.classList.add('active');
+      sendProgramChange(b);
+    });
+    btn.addEventListener('touchstart', e => {
+      e.preventDefault();
+      Array.from(banksContainer.children).forEach(n => n.classList.remove('active'));
+      btn.classList.add('active');
+      sendProgramChange(b);
+    }, {passive:false});
+  }
+
+  // Inicializa MIDI
+  function initMIDI() {
+    if (!navigator.requestMIDIAccess) {
+      status.textContent = 'Web MIDI API não disponível neste navegador.';
+      return;
+    }
+    navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+  }
+
+  function onMIDISuccess(access) {
+    midiAccess = access;
+    populateOutputs();
+    midiAccess.onstatechange = populateOutputs;
+    status.textContent = 'MIDI pronto. Escolha a saída acima.';
+  }
+
+  function onMIDIFailure(err) {
+    status.textContent = 'Falha ao acessar MIDI: ' + err;
+  }
+
+  function populateOutputs() {
+    midiOutSelect.innerHTML = '';
+    const outputs = Array.from(midiAccess.outputs.values());
+    if (outputs.length === 0) {
+      midiOutSelect.innerHTML = '<option>— nenhuma saída encontrada —</option>';
+      midiOutput = null;
+      status.textContent = 'Nenhuma saída MIDI detectada.';
+      return;
+    }
+    outputs.forEach(out => {
+      const opt = document.createElement('option');
+      opt.value = out.id;
+      opt.textContent = out.name;
+      midiOutSelect.appendChild(opt);
+    });
+    selectOutput(outputs[0].id);
+  }
+
+  function selectOutput(id) {
+    midiOutput = Array.from(midiAccess.outputs.values()).find(o => o.id === id);
+  }
+
+  midiOutSelect.addEventListener('change', () => selectOutput(midiOutSelect.value));
+
+  function sendCC(index, value) {
+    if (!midiOutput) return;
+    const ccNumber = 20 + index;
+    const channel = parseInt(channelSelect.value) & 0x0F;
+    const statusByte = 0xB0 | channel;
+    midiOutput.send([statusByte, ccNumber, value]);
+  }
+
+  function sendProgramChange(bankIndex) {
+    if (!midiOutput) {
+      status.textContent = 'Selecione uma saída MIDI para enviar banco.';
+      return;
+    }
+    const channel = parseInt(channelSelect.value) & 0x0F;
+    const statusByte = 0xC0 | channel;
+    const programNumber = bankIndex & 0x7F;
+    midiOutput.send([statusByte, programNumber]);
+  }
+
+  initMIDI();
+
+  // 🧠 Atalhos de teclado para os bancos (com bloqueio de busca do navegador)
+  const teclasBancos = [
+    "1","2","3","4","5","6","7","8","9","q","w","e"
+  ]; // 12 teclas → 12 bancos
+
+  document.addEventListener("keydown", e => {
+    // ignora se estiver digitando em campo de texto
+    if (["input", "textarea", "select"].includes(e.target.tagName.toLowerCase())) return;
+    // ignora atalhos com ctrl, alt ou meta
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+    const tecla = e.key.toLowerCase();
+    const index = teclasBancos.indexOf(tecla);
+    if (index >= 0 && index < BANK_COUNT) {
+      e.preventDefault(); // bloqueia busca / ações padrão
+      e.stopPropagation();
+
+      const btn = banksContainer.children[index];
+      if (btn) {
+        Array.from(banksContainer.children).forEach(n => n.classList.remove("active"));
+        btn.classList.add("active");
+        sendProgramChange(index);
+      }
+    }
+  });
+
+  
+})();
+</script>
+</body>
+</html>
