@@ -8,6 +8,7 @@
     <link class="rounded-md" rel="icon" type="image/png" href="favicon.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
     <style>
         .fretboard-scroll::-webkit-scrollbar {
             height: 10px;
@@ -396,7 +397,14 @@
 
         @media (max-width: 640px) {
             #themeSelector { min-width: 132px; }
+            #audioPlayer { max-width: 100%; }
         }
+        #audioDropZone.drag-over { background: var(--theme-primary-soft); outline: 1px dashed var(--theme-primary); }
+        #audioSeek, #audioVolume { accent-color: var(--theme-primary); }
+        #audioPlayer { position: relative; }
+        #audioPlaylistPanel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 50; width: min(420px, calc(100vw - 24px)); max-height:  min(55vh, 420px); overflow: auto; background: #0f172a; border: 1px solid #334155; border-radius: 12px; box-shadow: 0 14px 35px rgba(0,0,0,.45); padding: 10px; }
+        #audioPlaylistPanel button { cursor: pointer; }
+        .audio-playlist-row.active { background: rgba(79,70,229,.22); border-color: rgba(99,102,241,.65); }
 
     </style>
 </head>
@@ -413,6 +421,40 @@
                 </div>
             </div>
             
+            <div id="audioPlayer" class="flex-1 min-w-0 max-w-2xl w-full sm:w-auto flex items-center gap-2 bg-slate-950/70 border border-slate-700 rounded-xl px-3 py-2">
+                <input id="audioFilesInput" type="file" accept="audio/*,.mp3,.flac,.wav,.ogg,.m4a,.aac" multiple class="hidden">
+                <button id="audioAddBtn" type="button" class="shrink-0 flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-2.5 py-2 rounded-lg" title="Adicionar arquivos de áudio"><i data-lucide="plus" class="w-4 h-4"></i><span class="hidden lg:inline">Adicionar</span></button>
+                <button id="audioPrevBtn" type="button" class="shrink-0 text-slate-300 hover:text-white p-1" title="Faixa anterior"><i data-lucide="skip-back" class="w-4 h-4"></i></button>
+                <button id="audioPlayBtn" type="button" class="shrink-0 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full p-2 text-white" title="Reproduzir"><i data-lucide="play" class="w-4 h-4"></i></button>
+                <button id="audioNextBtn" type="button" class="shrink-0 text-slate-300 hover:text-white p-1" title="Próxima faixa"><i data-lucide="skip-forward" class="w-4 h-4"></i></button>
+                <div class="min-w-0 flex-1">
+                    <div id="audioDropZone" class="min-w-0 rounded-md px-1 py-0.5 transition" title="Arraste arquivos de áudio para cá">
+                        <div id="audioTrackName" class="text-xs font-semibold text-slate-200 truncate">Arraste arquivos de áudio aqui</div>
+                        <div class="flex items-center gap-2"><span id="audioAlbumKey" class="text-[9px] text-indigo-300 font-mono shrink-0">Álbum: —</span><span id="audioStatus" class="text-[9px] text-slate-500 truncate">MP3 · FLAC · WAV · OGG · M4A</span></div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-1"><span id="audioCurrentTime" class="text-[9px] text-slate-500 font-mono w-8">0:00</span><input id="audioSeek" type="range" min="0" max="1000" value="0" class="flex-1 min-w-0 h-1 accent-indigo-500 cursor-pointer"><span id="audioDuration" class="text-[9px] text-slate-500 font-mono w-8 text-right">0:00</span></div>
+                </div>
+                <div class="hidden md:flex items-center gap-1 shrink-0" title="Volume">
+                    <i data-lucide="volume-2" class="w-4 h-4 text-slate-400"></i>
+                    <input id="audioVolume" type="range" min="0" max="1" step="0.01" value="0.8" class="w-16 h-1 cursor-pointer" aria-label="Volume do áudio">
+                </div>
+                <button id="audioPlaylistBtn" type="button" class="shrink-0 flex items-center gap-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg px-2 py-2 text-xs text-slate-200" title="Exibir e gerenciar playlist" aria-expanded="false">
+                    <i data-lucide="list-music" class="w-4 h-4"></i><span class="hidden lg:inline">Playlist</span><span id="audioPlaylistCount" class="text-[10px] text-indigo-300">0</span>
+                </button>
+                <div id="audioPlaylistPanel" class="hidden">
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <strong class="text-xs text-slate-100">Playlist</strong>
+                        <div class="flex items-center gap-2">
+                            <button id="audioPlaylistClear" type="button" class="text-[11px] text-rose-300 hover:text-rose-200">Limpar</button>
+                            <button id="audioPlaylistClose" type="button" class="text-slate-400 hover:text-white p-1" title="Fechar"><i data-lucide="x" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>
+                    <div id="audioPlaylistItems" class="space-y-1"></div>
+                    <p id="audioPlaylistEmpty" class="text-[11px] text-slate-500 py-3 text-center">Nenhuma faixa adicionada.</p>
+                </div>
+                <audio id="audioElement" preload="metadata" class="hidden"></audio>
+            </div>
+
             <div class="flex flex-wrap gap-2 justify-center">
                 <div id="silBadge" class="hidden font-mono text-xs bg-red-950/40 border border-red-700/50 text-red-400 px-2 py-1 rounded-md tracking-wider">SILÊNCIO</div>
                 <select id="themeSelector" aria-label="Tema visual" title="Tema visual" class="bg-slate-800 border border-slate-700 text-slate-200 py-1.5 px-2.5 rounded-lg transition text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -2120,6 +2162,214 @@
                 : 'O sistema CAGED está disponível aqui para Maior, Menor, Dominante 7, Maj7 e m7. Use “Ver no Braço” para o voicing tradicional nos demais tipos.';
         }
 
+
+        // --- PLAYER DE ÁUDIO + LEITURA DO CAMPO ALBUM ---
+        const audioPlaylist = [];
+        let audioIndex = -1;
+        let audioObjectUrl = null;
+
+        function formatAudioTime(seconds) {
+            if (!Number.isFinite(seconds)) return '0:00';
+            return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
+        }
+
+        function normalizeAlbumKey(album) {
+            if (!album) return null;
+            const match = String(album).trim().match(/^([A-Ga-g])([#b♭]?)(m|min|minor)?$/i);
+            if (!match) return null;
+            let note = match[1].toUpperCase() + (match[2] || '').replace('♭', 'b');
+            const flatMap = { Db:'C#', Eb:'D#', Gb:'F#', Ab:'G#', Bb:'A#' };
+            note = flatMap[note] || note;
+            if (!ALL_NOTES.includes(note)) return null;
+            return { note, scale: match[3] ? 'minor' : 'major', label: `${note} ${match[3] ? 'Menor' : 'Maior'}` };
+        }
+
+        function applyAlbumKey(album) {
+            const key = normalizeAlbumKey(album);
+            const label = document.getElementById('audioAlbumKey');
+            if (!key) {
+                label.textContent = `Álbum: ${album || '—'}`;
+                label.title = 'Tonalidade não reconhecida. Use, por exemplo, A, Gm ou F#m.';
+                return;
+            }
+            state.rootNote = key.note;
+            state.scaleKey = key.scale;
+            document.getElementById('scaleSelector').value = key.scale;
+            document.getElementById('chordDictRoot').value = key.note;
+            updateURLHash();
+            renderRootSelector();
+            updateScaleInfo();
+            renderFretboard();
+            label.textContent = `Álbum: ${album} → ${key.label}`;
+            label.title = `Tonalidade detectada: ${key.label}`;
+        }
+
+        function readAudioAlbum(file, callback) {
+            if (!window.jsmediatags || !window.jsmediatags.read) return callback(null, 'Leitor de metadados indisponível');
+            window.jsmediatags.read(file, {
+                onSuccess: result => callback(result.tags && result.tags.album ? result.tags.album : '', null),
+                onError: error => callback(null, error && error.info ? error.info : 'Não foi possível ler os metadados')
+            });
+        }
+
+        function renderAudioPlaylist() {
+            const list = document.getElementById('audioPlaylistItems');
+            const empty = document.getElementById('audioPlaylistEmpty');
+            const count = document.getElementById('audioPlaylistCount');
+            if (!list || !empty || !count) return;
+            count.textContent = String(audioPlaylist.length);
+            list.innerHTML = '';
+            empty.classList.toggle('hidden', audioPlaylist.length > 0);
+            audioPlaylist.forEach((file, index) => {
+                const row = document.createElement('div');
+                row.className = `audio-playlist-row flex items-center gap-2 border border-slate-800 rounded-lg px-2 py-1.5 ${index === audioIndex ? 'active' : ''}`;
+                const play = document.createElement('button');
+                play.type = 'button';
+                play.className = 'min-w-0 flex-1 text-left text-xs text-slate-200 truncate hover:text-white';
+                play.textContent = `${index + 1}. ${file.name}`;
+                play.title = `Reproduzir ${file.name}`;
+                play.addEventListener('click', () => loadAudioTrack(index, true));
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'shrink-0 text-slate-500 hover:text-rose-300 p-1';
+                remove.title = 'Remover da playlist';
+                remove.innerHTML = '<i data-lucide="x" class="w-3.5 h-3.5"></i>';
+                remove.addEventListener('click', () => {
+                    const wasCurrent = index === audioIndex;
+                    audioPlaylist.splice(index, 1);
+                    if (!audioPlaylist.length) {
+                        audioIndex = -1;
+                        const audio = document.getElementById('audioElement');
+                        audio.pause();
+                        audio.removeAttribute('src');
+                        audio.load();
+                        if (audioObjectUrl) { URL.revokeObjectURL(audioObjectUrl); audioObjectUrl = null; }
+                        document.getElementById('audioTrackName').textContent = 'Arraste arquivos de áudio aqui';
+                        document.getElementById('audioAlbumKey').textContent = 'Álbum: —';
+                        document.getElementById('audioStatus').textContent = 'Playlist vazia';
+                    } else if (wasCurrent) {
+                        audioIndex = Math.min(index, audioPlaylist.length - 1);
+                        loadAudioTrack(audioIndex, false);
+                    } else if (index < audioIndex) {
+                        audioIndex--;
+                    }
+                    renderAudioPlaylist();
+                    updateAudioTrackUI();
+                });
+                row.append(play, remove);
+                list.appendChild(row);
+            });
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function updateAudioTrackUI() {
+            const audio = document.getElementById('audioElement');
+            const file = audioPlaylist[audioIndex];
+            document.getElementById('audioTrackName').textContent = file ? file.name : 'Arraste arquivos de áudio aqui';
+            document.getElementById('audioPlayBtn').innerHTML = audio.paused
+                ? '<i data-lucide="play" class="w-4 h-4"></i>' : '<i data-lucide="pause" class="w-4 h-4"></i>';
+            document.getElementById('audioPlayBtn').title = audio.paused ? 'Reproduzir' : 'Pausar';
+            lucide.createIcons();
+            renderAudioPlaylist();
+        }
+
+        function loadAudioTrack(index, autoplay = false) {
+            if (!audioPlaylist.length) return;
+            audioIndex = (index + audioPlaylist.length) % audioPlaylist.length;
+            const file = audioPlaylist[audioIndex];
+            const audio = document.getElementById('audioElement');
+            if (audioObjectUrl) URL.revokeObjectURL(audioObjectUrl);
+            audioObjectUrl = URL.createObjectURL(file);
+            audio.src = audioObjectUrl;
+            audio.load();
+            document.getElementById('audioSeek').value = 0;
+            document.getElementById('audioCurrentTime').textContent = '0:00';
+            document.getElementById('audioDuration').textContent = '0:00';
+            document.getElementById('audioStatus').textContent = `${audioIndex + 1}/${audioPlaylist.length} · Lendo metadados…`;
+            document.getElementById('audioAlbumKey').textContent = 'Álbum: lendo…';
+            updateAudioTrackUI();
+            readAudioAlbum(file, (album, error) => {
+                if (audioPlaylist[audioIndex] !== file) return;
+                if (album) applyAlbumKey(album);
+                else {
+                    document.getElementById('audioAlbumKey').textContent = 'Álbum: não encontrado';
+                    document.getElementById('audioAlbumKey').title = error || 'Campo Album ausente.';
+                }
+                document.getElementById('audioStatus').textContent = `${audioIndex + 1}/${audioPlaylist.length}${error ? ' · Metadados indisponíveis' : ''}`;
+            });
+            if (autoplay) audio.play().catch(() => { document.getElementById('audioStatus').textContent = 'Clique em Play para iniciar'; });
+        }
+
+        function addAudioFiles(files) {
+            const valid = Array.from(files || []).filter(file => file.type.startsWith('audio/') || /\.(mp3|flac|wav|ogg|m4a|aac|opus)$/i.test(file.name));
+            if (!valid.length) return;
+            audioPlaylist.push(...valid);
+            renderAudioPlaylist();
+            document.getElementById('audioStatus').textContent = `${audioPlaylist.length} faixa(s) na fila`;
+            if (audioIndex < 0) loadAudioTrack(0, false);
+        }
+
+        function setupAudioPlayer() {
+            const input = document.getElementById('audioFilesInput');
+            const player = document.getElementById('audioPlayer');
+            const drop = document.getElementById('audioDropZone');
+            const audio = document.getElementById('audioElement');
+            document.getElementById('audioAddBtn').addEventListener('click', () => input.click());
+            const volume = document.getElementById('audioVolume');
+            audio.volume = Number(volume.value);
+            volume.addEventListener('input', e => { audio.volume = Number(e.target.value); });
+            const playlistPanel = document.getElementById('audioPlaylistPanel');
+            const playlistBtn = document.getElementById('audioPlaylistBtn');
+            const closePlaylist = () => { playlistPanel.classList.add('hidden'); playlistBtn.setAttribute('aria-expanded', 'false'); };
+            playlistBtn.addEventListener('click', () => {
+                const opening = playlistPanel.classList.contains('hidden');
+                playlistPanel.classList.toggle('hidden', !opening);
+                playlistBtn.setAttribute('aria-expanded', String(opening));
+                if (opening) renderAudioPlaylist();
+            });
+            document.getElementById('audioPlaylistClose').addEventListener('click', closePlaylist);
+            document.getElementById('audioPlaylistClear').addEventListener('click', () => {
+                audio.pause();
+                audio.removeAttribute('src');
+                audio.load();
+                if (audioObjectUrl) { URL.revokeObjectURL(audioObjectUrl); audioObjectUrl = null; }
+                audioPlaylist = [];
+                audioIndex = -1;
+                document.getElementById('audioTrackName').textContent = 'Arraste arquivos de áudio aqui';
+                document.getElementById('audioAlbumKey').textContent = 'Álbum: —';
+                document.getElementById('audioStatus').textContent = 'Playlist vazia';
+                document.getElementById('audioSeek').value = 0;
+                document.getElementById('audioCurrentTime').textContent = '0:00';
+                document.getElementById('audioDuration').textContent = '0:00';
+                renderAudioPlaylist();
+                updateAudioTrackUI();
+            });
+            document.addEventListener('click', e => {
+                if (!player.contains(e.target)) closePlaylist();
+            });
+            input.addEventListener('change', e => { addAudioFiles(e.target.files); input.value = ''; });
+            ['dragenter','dragover'].forEach(type => player.addEventListener(type, e => { e.preventDefault(); drop.classList.add('drag-over'); }));
+            ['dragleave','drop'].forEach(type => player.addEventListener(type, e => { e.preventDefault(); if (type === 'drop' || !player.contains(e.relatedTarget)) drop.classList.remove('drag-over'); }));
+            player.addEventListener('drop', e => addAudioFiles(e.dataTransfer.files));
+            document.getElementById('audioPlayBtn').addEventListener('click', () => {
+                if (audioIndex < 0) { input.click(); return; }
+                if (audio.paused) audio.play().catch(() => {}); else audio.pause();
+            });
+            document.getElementById('audioPrevBtn').addEventListener('click', () => { if (audioPlaylist.length) loadAudioTrack(audioIndex - 1, true); });
+            document.getElementById('audioNextBtn').addEventListener('click', () => { if (audioPlaylist.length) loadAudioTrack(audioIndex + 1, true); });
+            audio.addEventListener('play', updateAudioTrackUI);
+            audio.addEventListener('pause', updateAudioTrackUI);
+            audio.addEventListener('ended', () => { if (audioIndex < audioPlaylist.length - 1) loadAudioTrack(audioIndex + 1, true); });
+            audio.addEventListener('loadedmetadata', () => { document.getElementById('audioDuration').textContent = formatAudioTime(audio.duration); });
+            audio.addEventListener('timeupdate', () => {
+                document.getElementById('audioCurrentTime').textContent = formatAudioTime(audio.currentTime);
+                if (Number.isFinite(audio.duration) && audio.duration > 0) document.getElementById('audioSeek').value = Math.round(audio.currentTime / audio.duration * 1000);
+            });
+            document.getElementById('audioSeek').addEventListener('input', e => {
+                if (Number.isFinite(audio.duration) && audio.duration > 0) audio.currentTime = Number(e.target.value) / 1000 * audio.duration;
+            });
+        }
+
         function setupEventBindings() {
             document.getElementById('themeSelector').addEventListener('change', (e) => applyTheme(e.target.value));
             document.getElementById('scaleSelector').addEventListener('change', (e) => { 
@@ -2257,6 +2507,7 @@
             
             updateSilenceVis('none');
             setupBpmDragAndScroll();
+            setupAudioPlayer();
             setupEventBindings();
             
             requestWakeLock();
