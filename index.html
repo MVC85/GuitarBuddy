@@ -401,8 +401,8 @@
         }
         #audioDropZone.drag-over { background: var(--theme-primary-soft); outline: 1px dashed var(--theme-primary); }
         #audioSeek, #audioVolume { accent-color: var(--theme-primary); }
-        #audioPlayer { position: relative; }
-        #audioPlaylistPanel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 50; width: min(420px, calc(100vw - 24px)); max-height:  min(55vh, 420px); overflow: auto; background: #0f172a; border: 1px solid #334155; border-radius: 12px; box-shadow: 0 14px 35px rgba(0,0,0,.45); padding: 10px; }
+        #audioPlayer { position: relative; overflow: visible; }
+        #audioPlaylistPanel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 1200; width: min(420px, calc(100vw - 24px)); max-height:  min(55vh, 420px); overflow: auto; background: #0f172a; border: 1px solid #334155; border-radius: 12px; box-shadow: 0 14px 35px rgba(0,0,0,.45); padding: 10px; }
         #audioPlaylistPanel button { cursor: pointer; }
         .audio-playlist-row.active { background: rgba(79,70,229,.22); border-color: rgba(99,102,241,.65); }
 
@@ -412,7 +412,7 @@
 
     <div id="beatFlash"></div>
 
-    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-10 px-2 sm:px-4 py-3">
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-[1000] px-2 sm:px-4 py-3">
         <div class="w-full mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
             <div class="flex items-center gap-3">
                 <img src="LogoBuddy.png" class="w-10 h-10 object-contain rounded-lg bg-slate-900/50 border border-slate-800 shadow" alt="GUITAR BUDDY Logo" onerror="this.onerror=null; this.src='https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/music.svg'; this.className='w-10 h-10 p-2 bg-indigo-600 rounded-lg text-white filter invert';">
@@ -423,7 +423,6 @@
             
             <div id="audioPlayer" class="flex-1 min-w-0 max-w-2xl w-full sm:w-auto flex items-center gap-2 bg-slate-950/70 border border-slate-700 rounded-xl px-3 py-2">
                 <input id="audioFilesInput" type="file" accept="audio/*,.mp3,.flac,.wav,.ogg,.m4a,.aac" multiple class="hidden">
-                <button id="audioAddBtn" type="button" class="shrink-0 flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-2.5 py-2 rounded-lg" title="Adicionar arquivos de áudio"><i data-lucide="plus" class="w-4 h-4"></i><span class="hidden lg:inline">Adicionar</span></button>
                 <button id="audioPrevBtn" type="button" class="shrink-0 text-slate-300 hover:text-white p-1" title="Faixa anterior"><i data-lucide="skip-back" class="w-4 h-4"></i></button>
                 <button id="audioPlayBtn" type="button" class="shrink-0 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full p-2 text-white" title="Reproduzir"><i data-lucide="play" class="w-4 h-4"></i></button>
                 <button id="audioNextBtn" type="button" class="shrink-0 text-slate-300 hover:text-white p-1" title="Próxima faixa"><i data-lucide="skip-forward" class="w-4 h-4"></i></button>
@@ -438,9 +437,12 @@
                     <i data-lucide="volume-2" class="w-4 h-4 text-slate-400"></i>
                     <input id="audioVolume" type="range" min="0" max="1" step="0.01" value="0.8" class="w-16 h-1 cursor-pointer" aria-label="Volume do áudio">
                 </div>
-                <button id="audioPlaylistBtn" type="button" class="shrink-0 flex items-center gap-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg px-2 py-2 text-xs text-slate-200" title="Exibir e gerenciar playlist" aria-expanded="false">
-                    <i data-lucide="list-music" class="w-4 h-4"></i><span class="hidden lg:inline">Playlist</span><span id="audioPlaylistCount" class="text-[10px] text-indigo-300">0</span>
-                </button>
+                <div class="shrink-0 flex flex-col gap-1 items-stretch ml-1">
+                    <button id="audioAddBtn" type="button" class="w-full flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-2.5 py-2 rounded-lg" title="Adicionar arquivos de áudio"><i data-lucide="plus" class="w-4 h-4"></i><span>Adicionar</span></button>
+                    <button id="audioPlaylistBtn" type="button" class="w-full flex items-center justify-center gap-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg px-2 py-2 text-xs text-slate-200" title="Exibir e gerenciar playlist" aria-expanded="false">
+                        <i data-lucide="list-music" class="w-4 h-4"></i><span>Playlist</span><span id="audioPlaylistCount" class="text-[10px] text-indigo-300">0</span>
+                    </button>
+                </div>
                 <div id="audioPlaylistPanel" class="hidden">
                     <div class="flex items-center justify-between gap-2 mb-2">
                         <strong class="text-xs text-slate-100">Playlist</strong>
@@ -1392,58 +1394,12 @@
             fretboard.appendChild(markerRow);
         }
 
+        // Timbre de piano acústico para as notas clicadas no braço e na escala.
         function playGuitarTone(frequency) {
             initAudio();
-            if (!state.audioCtx) return;
-
-            const ctx = state.audioCtx;
-            const now = ctx.currentTime;
-
-            const carrier = ctx.createOscillator();
-            const carrierGain = ctx.createGain();
-            const modulator = ctx.createOscillator();
-            const modulatorGain = ctx.createGain();
-
-            // Adicionando transiente de palheta (Attack)
-            const attackOsc = ctx.createOscillator();
-            const attackGain = ctx.createGain();
-            attackOsc.type = 'triangle';
-            attackOsc.frequency.setValueAtTime(frequency * 3, now);
-            attackGain.gain.setValueAtTime(0.3, now);
-            attackGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-            attackOsc.connect(attackGain); attackGain.connect(state.guitarGain);
-            attackOsc.start(now); attackOsc.stop(now + 0.06);
-
-            carrier.type = 'sine';
-            carrier.frequency.setValueAtTime(frequency, now);
-
-            modulator.type = 'sine';
-            modulator.frequency.setValueAtTime(frequency * 2.0, now); 
-
-            modulatorGain.gain.setValueAtTime(frequency * 1.6, now);
-            modulatorGain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
-
-            const filter = ctx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(frequency * 4.0, now);
-            filter.frequency.exponentialRampToValueAtTime(frequency * 1.3, now + 0.7);
-
-            carrierGain.gain.setValueAtTime(0, now);
-            carrierGain.gain.linearRampToValueAtTime(0.4, now + 0.006); 
-            carrierGain.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
-
-            modulator.connect(modulatorGain);
-            modulatorGain.connect(carrier.frequency);
-
-            carrier.connect(filter);
-            filter.connect(carrierGain);
-            carrierGain.connect(state.guitarGain);
-
-            modulator.start(now);
-            carrier.start(now);
-            
-            modulator.stop(now + 1.7);
-            carrier.stop(now + 1.7);
+            if (!state.audioCtx || !state.guitarGain) return;
+            const midi = Math.round(69 + 12 * Math.log2(frequency / 440));
+            playRhodesNote(state.audioCtx, state.guitarGain, midi, state.audioCtx.currentTime, 1.9, 0.85);
         }
         function playMidiNote(midiNumber) { playGuitarTone(midiToFreq(midiNumber)); }
         function midiToFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
@@ -2164,7 +2120,7 @@
 
 
         // --- PLAYER DE ÁUDIO + LEITURA DO CAMPO ALBUM ---
-        const audioPlaylist = [];
+        let audioPlaylist = [];
         let audioIndex = -1;
         let audioObjectUrl = null;
 
